@@ -85,6 +85,11 @@ Two laptops, Alice and Bob. Model: whichever is configured (Offline demo works w
 7. *(Optional)* **Switch models mid-session** from the header, e.g. start on a local model and hand
    the rest to Claude. The next turn rebuilds context from the shared log for the new model.
 
+| | |
+|---|---|
+| ![Bob's comment on the step where the agent read the deprecated middleware](docs/screenshots/comment.png) | ![The hand-off card the new driver sees](docs/screenshots/handoff.png) |
+| Bob comments on a step; Alice gets a notification and sends it to the agent. | Alice hands off; Bob gets the state of play and the open decision. |
+
 ![The finished session](docs/screenshots/done.png)
 
 ## How it works
