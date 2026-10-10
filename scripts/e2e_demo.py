@@ -93,6 +93,10 @@ def main() -> int:
         # 5. Alice hands off to Bob and leaves; Bob approves the decision and the agent finishes.
         alice.get_by_role("button", name="Hand off").click()
         alice.get_by_role("button", name="Bob").click()
+        bob.get_by_role("button", name="Take it from here").wait_for(timeout=10000)
+        bob.wait_for_timeout(500)
+        shot(bob, "bob-handoff-catch-up")
+        bob.get_by_role("button", name="Take it from here").click()
         bob.get_by_text("You're driving", exact=True).wait_for(timeout=10000)
         bob.wait_for_timeout(400)
         shot(bob, "bob-has-baton")

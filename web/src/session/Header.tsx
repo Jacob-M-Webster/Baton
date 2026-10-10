@@ -19,7 +19,6 @@ export function SessionHeader({
   hasDecision,
   send,
   onCatchUp,
-  newSinceCatchUp,
   conn,
 }: {
   session: Session;
@@ -28,7 +27,6 @@ export function SessionHeader({
   hasDecision: boolean;
   send: (m: Record<string, unknown>) => boolean;
   onCatchUp: () => void;
-  newSinceCatchUp: boolean;
   conn: string;
 }) {
   const isDriver = session.driver_id === me;
@@ -70,10 +68,9 @@ export function SessionHeader({
 
         <Presence participants={participants} driverId={session.driver_id} />
 
-        <Button variant="ghost" onClick={onCatchUp} className="relative" title="What happened while you were away">
+        <Button variant="ghost" onClick={onCatchUp} title="What happened while you were away">
           <Sparkles className="size-3.5" />
           <span className="hidden xl:inline">Catch up</span>
-          {newSinceCatchUp && <span className="absolute top-1 right-1 size-1.5 rounded-full bg-baton" />}
         </Button>
 
         <ShareButton sessionId={session.id} />

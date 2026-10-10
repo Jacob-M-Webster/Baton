@@ -229,7 +229,7 @@ def interventions(events: list[dict], names: dict[str, str]) -> list[dict]:
         if t == "human.message" and p.get("mode") == "steer":
             if p.get("promoted_from"):
                 src = names.get(p.get("suggested_by", ""), "a collaborator")
-                out.append({"seq": ev["seq"], "who": who, "with": src, "what": f"promoted {src}'s note: “{clip(p['text'], 90)}”"})
+                out.append({"seq": ev["seq"], "who": who, "with": src, "what": f"sent {src}'s note to the agent: “{clip(p['text'], 90)}”"})
             else:
                 out.append({"seq": ev["seq"], "who": who, "what": f"steered: “{clip(p['text'], 90)}”"})
         elif t == "human.interrupt":

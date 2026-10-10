@@ -22,8 +22,7 @@ export function SessionPage({ id }: { id: string }) {
   const [, navigate] = useLocation();
   const [initialCard, setInitialCard] = useState<CatchUp | null>(null);
   const [notFound, setNotFound] = useState(false);
-  const [showCatchUp, setShowCatchUp] = useState(false);
-  const [catchUpSeenAt, setCatchUpSeenAt] = useState(0);
+  const [showCatchUp, setShowCatchUp] = useState<false | "join" | "handoff">(false);
   const [openThread, setOpenThread] = useState<number | null>(null);
   const [highlight, setHighlight] = useState<number | null>(null);
   const [atBottom, setAtBottom] = useState(true);
@@ -43,8 +42,7 @@ export function SessionPage({ id }: { id: string }) {
         disconnect = connectSession(id, me, role, r.comments);
         const isCreator = r.session.created_by === me;
         const stale = r.catchup.since_seq === undefined || (r.catchup.new_events ?? 0) >= (isCreator ? 12 : 6);
-        if (stale && r.session.head_seq > 4) setShowCatchUp(true);
-        setCatchUpSeenAt(r.session.head_seq);
+        if (stale && r.session.head_seq > 4) setShowCatchUp("join");
       })
       .catch(() => alive && setNotFound(true));
     return () => {
@@ -92,7 +90,7 @@ export function SessionPage({ id }: { id: string }) {
   useLayoutEffect(() => {
     const el = scroller.current;
     if (el && live && atBottom) el.scrollTop = el.scrollHeight;
-  }, [items.length, partial.text, partial.thinking, live, atBottom, replayed]);
+  }, [items.length, partial.text, partial.thinking, live, atBottom, replayed, !!session]);
 
   // Follow my own actions, and the moments that need me, even if I had scrolled up.
   const lastEv = events[events.length - 1];
@@ -101,6 +99,8 @@ export function SessionPage({ id }: { id: string }) {
     const needsMe =
       (lastEv.type === "agent.decision_point" && session?.driver_id === me) ||
       (lastEv.type === "control.driver_changed" && lastEv.payload.to === me);
+    // Handing off the baton comes with a catch-up for the new driver.
+    if (lastEv.type === "control.driver_changed" && lastEv.payload.to === me && lastEv.actor !== me) setShowCatchUp("handoff");
     if (lastEv.actor === me || needsMe) {
       setAtBottom(true);
       requestAnimationFrame(() => {
@@ -175,11 +175,7 @@ export function SessionPage({ id }: { id: string }) {
         hasDecision={!!decision}
         send={send}
         conn={conn}
-        onCatchUp={() => {
-          setShowCatchUp(true);
-          setCatchUpSeenAt(session.head_seq);
-        }}
-        newSinceCatchUp={session.head_seq - catchUpSeenAt > 8}
+        onCatchUp={() => setShowCatchUp("join")}
       />
       <div className="flex min-h-0 flex-1">
         <div className="flex min-w-0 flex-1 flex-col">
@@ -239,7 +235,14 @@ export function SessionPage({ id }: { id: string }) {
         <RightPanel session={session} events={events} participants={participants} card={card} ctx={ctx} onJump={jump} />
       </div>
       {showCatchUp && card && (
-        <CatchUpModal card={card} people={participants} driverName={driverName} onClose={() => setShowCatchUp(false)} onJump={jump} />
+        <CatchUpModal
+          card={card}
+          people={participants}
+          driverName={driverName}
+          handoff={showCatchUp === "handoff" ? people[lastEv?.actor ?? ""]?.name || "A teammate" : undefined}
+          onClose={() => setShowCatchUp(false)}
+          onJump={jump}
+        />
       )}
     </div>
   );

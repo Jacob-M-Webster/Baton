@@ -211,8 +211,6 @@ function notify(e: BatonEvent, me: string) {
   const iDrive = s?.driver_id === me;
   if (e.type === "control.driver_requested" && iDrive && e.actor !== me) {
     toast(`${nameOf(e.actor)} is asking for the baton`, "request", { userId: e.actor, seq: e.seq });
-  } else if (e.type === "control.driver_changed" && e.payload.to === me && e.actor !== me) {
-    toast("You have the baton. You're driving now.", "baton");
   } else if (e.type === "agent.decision_point" && iDrive) {
     toast("The agent needs your decision", "attn");
   } else if (e.type === "human.message" && e.payload.mode === "suggest" && iDrive && e.actor !== me) {

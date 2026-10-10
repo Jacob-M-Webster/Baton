@@ -7,6 +7,7 @@ import { modelLabel } from "../lib/format";
 import { useSession } from "../lib/session";
 import { Avatar } from "../components/Avatar";
 import { Button } from "../components/Button";
+import { BatonMark } from "../components/Logo";
 
 export function useCatchUp(sid: string, me: string, headSeq: number) {
   const tick = useSession((s) => s.catchupTick);
@@ -64,7 +65,7 @@ export function CatchUpBody({
           </span>
         </button>
       )}
-      <div className={clsx("grid gap-4", !compact && "sm:grid-cols-2")}>
+      <div className={clsx("grid gap-4", !compact && card.done.length > 0 && card.next.length > 0 && "sm:grid-cols-2")}>
         {card.done.length > 0 && (
           <Section label="Done">
             <ul className="space-y-1">
@@ -116,12 +117,14 @@ export function CatchUpModal({
   onClose,
   onJump,
   driverName,
+  handoff,
 }: {
   card: CatchUp;
   people: Participant[];
   onClose: () => void;
   onJump: (seq: number) => void;
   driverName?: string;
+  handoff?: string;
 }) {
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -138,12 +141,20 @@ export function CatchUpModal({
         <div className="flex items-start gap-3 border-b border-line px-6 pt-5 pb-4">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-xs font-medium text-baton">
-              <Sparkles className="size-3.5" /> Catch up
+              {handoff ? (
+                <>
+                  <BatonMark className="size-3.5" /> {handoff} handed you the baton
+                </>
+              ) : (
+                <>
+                  <Sparkles className="size-3.5" /> Catch up
+                </>
+              )}
             </div>
             <h2 className="mt-1.5 text-[17px] leading-snug font-semibold tracking-tight text-ink">{card.goal}</h2>
             <p className="mt-1 text-xs text-ink-3">
               {fresh ? `${fresh} new events since you last looked` : `${card.head_seq} events so far`}
-              {driverName ? ` · ${driverName} is driving` : ""}
+              {handoff ? " · you're driving now" : driverName ? ` · ${driverName} is driving` : ""}
             </p>
           </div>
           <button onClick={onClose} className="rounded-md p-1 text-ink-4 hover:bg-sunken hover:text-ink" aria-label="Close">
@@ -165,7 +176,7 @@ export function CatchUpModal({
             {card.source === "log" ? "Built from the session log" : `Summarized by ${modelLabel(card.source)}`}
           </span>
           <Button variant="primary" className="ml-auto" onClick={onClose}>
-            Jump in <ArrowRight className="size-3.5" />
+            {handoff ? "Take it from here" : "Jump in"} <ArrowRight className="size-3.5" />
           </Button>
         </div>
       </div>
