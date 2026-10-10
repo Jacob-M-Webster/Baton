@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowDown, History, Loader2 } from "lucide-react";
 import { api } from "../lib/api";
@@ -30,6 +30,7 @@ export function SessionPage({ id }: { id: string }) {
   const [atBottom, setAtBottom] = useState(true);
   const scroller = useRef<HTMLDivElement>(null);
   const [liveSince] = useState(() => Date.now() / 1000 + 1);
+  const [newSince, setNewSince] = useState<number | null>(null); // last step this person saw before coming back
 
   const { session, events, participants, partial, conn, replayed, viewSeq, setViewSeq, send } = useSession();
 
@@ -46,6 +47,8 @@ export function SessionPage({ id }: { id: string }) {
         const isCreator = r.session.created_by === me;
         const stale = r.catchup.since_seq === undefined || (r.catchup.new_events ?? 0) >= (isCreator ? 12 : 6);
         if (stale && r.session.head_seq > 4) setShowCatchUp("join");
+        const seen = r.catchup.since_seq;
+        if (seen && (r.catchup.new_events ?? 0) >= 3) setNewSince(seen);
       })
       .catch(() => alive && setNotFound(true));
     return () => {
@@ -205,15 +208,22 @@ export function SessionPage({ id }: { id: string }) {
     el?.scrollIntoView({ block: "end" });
   }, [viewSeq]);
 
-  // The tab title flags work that's waiting on you.
+  // The tab title flags work that's waiting on you, and counts steps you missed while away.
+  const [hiddenAt, setHiddenAt] = useState<number | null>(null);
+  useEffect(() => {
+    const onVis = () => setHiddenAt(document.hidden ? useSession.getState().lastSeq : null);
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+  const unseen = hiddenAt === null ? 0 : events.filter((e) => e.seq > hiddenAt && VISIBLE_TYPES.has(e.type)).length;
   useEffect(() => {
     if (!session) return;
     const waitingOnMe = !!decision && session.driver_id === me;
-    document.title = `${waitingOnMe ? "● Decision needed · " : ""}${session.title} · Baton`;
+    document.title = `${unseen ? `(${unseen}) ` : ""}${waitingOnMe ? "● Decision needed · " : ""}${session.title} · Baton`;
     return () => {
       document.title = "Baton";
     };
-  }, [session, decision, me]);
+  }, [session, decision, me, unseen]);
 
   // Esc interrupts (driver only), unless you're mid-sentence somewhere.
   useEffect(() => {
@@ -295,8 +305,17 @@ export function SessionPage({ id }: { id: string }) {
           >
             <div className="mx-auto w-full max-w-[760px] pt-8 pr-12 pb-6 pl-4 sm:pr-16 sm:pl-6">
               <div className="space-y-3.5">
-                {items.map((it) => (
-                  <TimelineItem key={`${it.kind}-${it.seq}`} item={it} ctx={ctx} events={events} />
+                {items.map((it, i) => (
+                  <Fragment key={`${it.kind}-${it.seq}`}>
+                    {newSince !== null && it.seq > newSince && (i === 0 || items[i - 1].seq <= newSince) && (
+                      <div className="flex items-center gap-3 py-1 text-[11px] font-medium tracking-wide text-baton uppercase">
+                        <span className="h-px flex-1 bg-baton/40" />
+                        New since you were last here
+                        <span className="h-px flex-1 bg-baton/40" />
+                      </div>
+                    )}
+                    <TimelineItem item={it} ctx={ctx} events={events} />
+                  </Fragment>
                 ))}
                 {streaming && partial.thinking && !partial.text && <ThinkingItem streaming={partial.thinking} />}
                 {streaming && partial.text && <AgentText streaming={partial.text} model={session.model} />}
@@ -363,6 +382,8 @@ function Drafting({ tool }: { tool: ToolProgress }) {
     </div>
   );
 }
+
+const VISIBLE_TYPES = new Set(["agent.text", "tool.call", "human.message", "agent.decision_point", "control.driver_changed", "session.error"]);
 
 function nearest(seq: number): HTMLElement | null {
   const all = Array.from(document.querySelectorAll<HTMLElement>("[data-seq], [id^='ev-']"));
