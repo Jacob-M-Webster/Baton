@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import AsyncIterator
 
-from .base import LazyModule, ProviderError, StreamEvent, safe_tool_id
+from .base import LazyModule, ProviderError, StreamEvent, ToolProgress, safe_tool_id
 
 openai = LazyModule("openai")
 
@@ -87,6 +87,7 @@ class OpenAIProvider:
                 resp = await self.client.chat.completions.create(**kwargs)
 
             calls: dict[int, dict] = {}
+            progress: dict[int, ToolProgress] = {}
             finish = None
             usage = None
             async for chunk in resp:
@@ -110,6 +111,11 @@ class OpenAIProvider:
                         slot["name"] += tc.function.name
                     if tc.function and tc.function.arguments:
                         slot["args"] += tc.function.arguments
+                    idx = tc.index if tc.index is not None else len(calls) - 1
+                    if slot["name"]:
+                        prog = progress.setdefault(idx, ToolProgress(slot["name"]))
+                        if (p := prog.feed(tc.function.arguments if tc.function and tc.function.arguments else "")) is not None:
+                            yield p
                 if ch.finish_reason:
                     finish = ch.finish_reason
         except openai.APIStatusError as e:

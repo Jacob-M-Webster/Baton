@@ -680,6 +680,8 @@ class Runner:
                     mgr.hub.delta(self.sid, "thinking", ev.text, turn)
                 elif ev.kind == "tool_call":
                     calls.append(ev.data)
+                elif ev.kind == "tool_progress":
+                    mgr.hub.tool_progress(self.sid, turn, ev.data)
                 elif ev.kind == "thinking_block":
                     self.thinking_blocks.append(ev.data)
                 elif ev.kind == "usage":

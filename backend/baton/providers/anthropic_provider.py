@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from typing import AsyncIterator
 
-from .base import LazyModule, ProviderError, StreamEvent, safe_tool_id
+from .base import LazyModule, ProviderError, StreamEvent, ToolProgress, safe_tool_id
 
 anthropic = LazyModule("anthropic")
 
@@ -73,13 +73,21 @@ class AnthropicProvider:
                 messages=self.to_wire(messages, model),
                 tools=wire_tools,
             ) as stream:
+                progress: ToolProgress | None = None
                 async for ev in stream:
-                    if ev.type == "content_block_delta":
+                    if ev.type == "content_block_start" and getattr(ev.content_block, "type", "") == "tool_use":
+                        progress = ToolProgress(ev.content_block.name)
+                        if (p := progress.feed("")) is not None:
+                            yield p
+                    elif ev.type == "content_block_delta":
                         d = ev.delta
                         if d.type == "text_delta":
                             yield StreamEvent("text_delta", d.text)
                         elif d.type == "thinking_delta":
                             yield StreamEvent("thinking_delta", d.thinking)
+                        elif d.type == "input_json_delta" and progress is not None:
+                            if (p := progress.feed(d.partial_json)) is not None:
+                                yield p
                 final = await stream.get_final_message()
         except anthropic.APIStatusError as e:
             raise ProviderError(f"Anthropic API error {e.status_code}: {_msg(e)}") from e

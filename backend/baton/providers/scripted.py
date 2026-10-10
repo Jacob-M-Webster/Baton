@@ -11,6 +11,7 @@ the beat name), so it survives interrupts and server restarts.
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 import uuid
 from typing import AsyncIterator
@@ -71,6 +72,12 @@ class ScriptedProvider:
             yield StreamEvent("text_delta", chunk)
             await self._pause(0.03)
         for name, args in calls:
+            if name in ("write_file", "edit_file"):
+                # Like a real model writing out a long tool call: viewers see what's being drafted.
+                size = len(json.dumps(args))
+                for frac in (0.2, 0.45, 0.7, 0.95):
+                    yield StreamEvent("tool_progress", data={"name": name, "chars": int(size * frac), "target": args.get("path", "")})
+                    await self._pause(0.35)
             yield StreamEvent("tool_call", data={"id": f"call_demo_{beat}_{uuid.uuid4().hex[:8]}", "name": name, "input": args})
         n_in = sum(len(str(m["content"])) for m in messages) // 4
         yield StreamEvent("usage", data={"input_tokens": n_in, "output_tokens": (len(text) + len(think)) // 4 + 40, "cached_tokens": 0})

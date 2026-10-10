@@ -125,6 +125,7 @@ async def test_anthropic_stream_text_and_tool_call():
     assert "".join(e.text for e in evs if e.kind == "text_delta") == "Looking around."
     calls = [e.data for e in evs if e.kind == "tool_call"]
     assert calls == [{"id": "toolu_01", "name": "list_files", "input": {"path": "."}}]
+    assert [e.data["name"] for e in evs if e.kind == "tool_progress"][:1] == ["list_files"]
     assert [e for e in evs if e.kind == "done"][0].data["stop_reason"] == "tool_use"
     req = srv.requests[0]
     assert req["system"][0]["cache_control"] == {"type": "ephemeral"}
@@ -136,6 +137,7 @@ async def test_openai_compatible_stream_assembles_tool_arguments():
     evs = await collect(p, [{"role": "user", "content": [{"type": "text", "text": "hi"}]}])
     calls = [e.data for e in evs if e.kind == "tool_call"]
     assert calls == [{"id": "call_9", "name": "read_file", "input": {"path": "app/server.py"}}]
+    assert [e.data["name"] for e in evs if e.kind == "tool_progress"][:1] == ["read_file"]
     usage = [e.data for e in evs if e.kind == "usage"][0]
     assert usage["input_tokens"] == 40
     assert await p.list_models() == ["llama-test"]
@@ -296,3 +298,15 @@ async def test_steer_during_a_tool_reaches_the_next_model_call(mgr):
     assert roles[-2:] == ["tool", "user"], roles
     assert second[-2]["content"].startswith("done")
     assert second[-1]["content"] == "[Alice, steering]: Use the token bucket instead."
+
+
+def test_tool_progress_reports_target_and_throttles():
+    from baton.providers.base import ToolProgress
+
+    p = ToolProgress("write_file")
+    chunk = '{"path": "app/middleware/rate'
+    first = p.feed(chunk)
+    assert first.data == {"name": "write_file", "chars": len(chunk), "target": "app/middleware/rate"}
+    assert p.feed('_limit.py", "content": "') is None  # throttled until ~240 more chars
+    later = p.feed("x" * 300)
+    assert later.data["target"] == "app/middleware/rate_limit.py" and later.data["chars"] > 300

@@ -3,7 +3,8 @@ import { useLocation } from "wouter";
 import { ArrowDown, History, Loader2 } from "lucide-react";
 import { api } from "../lib/api";
 import { useIdentity } from "../lib/identity";
-import { connectSession, useSession } from "../lib/session";
+import { connectSession, useSession, type ToolProgress } from "../lib/session";
+import { compact } from "../lib/format";
 import { buildItems, groupReads, openDecision } from "../lib/derive";
 import type { CatchUp, Participant } from "../lib/types";
 import { refreshSessions } from "../lib/sessions";
@@ -258,8 +259,9 @@ export function SessionPage({ id }: { id: string }) {
   }
 
   const pendingTool = items.some((it) => it.kind === "tool" && !it.result);
+  const drafting = live && partial.turn !== null && partial.tool ? partial.tool : null;
   const streaming = live && partial.turn !== null && (partial.text || partial.thinking);
-  const working = live && session.status === "running" && !streaming && !pendingTool;
+  const working = live && session.status === "running" && !streaming && !pendingTool && !drafting;
   const driverName = session.driver_id ? people[session.driver_id]?.name : undefined;
 
   return (
@@ -298,10 +300,11 @@ export function SessionPage({ id }: { id: string }) {
                 ))}
                 {streaming && partial.thinking && !partial.text && <ThinkingItem streaming={partial.thinking} />}
                 {streaming && partial.text && <AgentText streaming={partial.text} model={session.model} />}
+                {drafting && <Drafting tool={drafting} />}
                 {working && (
                   <div className="flex items-center gap-3 py-1">
                     <AgentAvatar size={22} />
-                    <span className="shimmer-text text-[13.5px] font-medium">Working</span>
+                    <span className="shimmer-text text-[13.5px] font-medium">Thinking</span>
                   </div>
                 )}
                 {live && session.status === "waiting_input" && !decision && items.length > 1 && (
@@ -342,6 +345,21 @@ export function SessionPage({ id }: { id: string }) {
           onJump={jump}
         />
       )}
+    </div>
+  );
+}
+
+/** The model is still writing out a tool call, e.g. a whole file. Show what, and how much so far. */
+function Drafting({ tool }: { tool: ToolProgress }) {
+  const verb: Record<string, string> = { write_file: "Writing", edit_file: "Editing", run_command: "Preparing", read_file: "Opening" };
+  return (
+    <div className="pl-[34px]">
+      <div className="flex h-9 items-center gap-2.5 rounded-lg border border-dashed border-line-strong bg-panel px-3">
+        <Loader2 className="size-3.5 animate-spin text-ink-3" />
+        <span className="shimmer-text shrink-0 text-[13px] font-medium">{verb[tool.name] || `Preparing ${tool.name}`}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-ink-2">{tool.target}</span>
+        {tool.chars > 0 && <span className="tnum shrink-0 text-[11.5px] text-ink-4">{compact(tool.chars)} chars</span>}
+      </div>
     </div>
   );
 }

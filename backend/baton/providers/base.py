@@ -14,10 +14,11 @@ Adapters translate this to their wire format and stream back StreamEvents.
 from __future__ import annotations
 
 import importlib
+import re
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Literal, Protocol
 
-StreamKind = Literal["text_delta", "thinking_delta", "thinking_block", "tool_call", "usage", "done"]
+StreamKind = Literal["text_delta", "thinking_delta", "thinking_block", "tool_progress", "tool_call", "usage", "done"]
 
 
 @dataclass
@@ -57,6 +58,23 @@ class LazyModule:
 
     def __getattr__(self, attr: str):
         return getattr(importlib.import_module(self._name), attr)
+
+
+class ToolProgress:
+    """Turns streamed tool-call JSON into occasional progress updates for viewers."""
+
+    TARGET = re.compile(r'"(path|command)"\s*:\s*"((?:[^"\\]|\\.)*)')  # value may still be streaming
+
+    def __init__(self, name: str):
+        self.name, self.raw, self.sent = name, "", -1
+
+    def feed(self, chunk: str) -> StreamEvent | None:
+        self.raw += chunk
+        if self.sent >= 0 and len(self.raw) - self.sent < 240:
+            return None
+        self.sent = len(self.raw)
+        m = self.TARGET.search(self.raw)
+        return StreamEvent("tool_progress", data={"name": self.name, "chars": len(self.raw), "target": m.group(2)[:120] if m else ""})
 
 
 def text_of(blocks: list[dict]) -> str:

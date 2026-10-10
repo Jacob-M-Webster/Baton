@@ -3,6 +3,7 @@ import type { BatonEvent, Comment, Participant, Session } from "./types";
 import { toast } from "../components/Toasts";
 
 type Conn = "connecting" | "open" | "reconnecting" | "closed";
+export type ToolProgress = { name: string; chars: number; target: string };
 
 interface SessionState {
   sid: string | null;
@@ -12,7 +13,7 @@ interface SessionState {
   replayed: boolean;
   participants: Participant[];
   comments: Record<string, Comment>;
-  partial: { turn: number | null; text: string; thinking: string };
+  partial: { turn: number | null; text: string; thinking: string; tool?: ToolProgress | null };
   conn: Conn;
   catchupTick: number;
   viewSeq: number | null; // null = live
@@ -156,8 +157,14 @@ class SessionSocket {
         set({ participants: msg.participants });
         break;
       case "partial":
-        set({ partial: { turn: msg.turn, text: msg.text || "", thinking: msg.thinking || "" } });
+        set({ partial: { turn: msg.turn, text: msg.text || "", thinking: msg.thinking || "", tool: msg.tool ?? null } });
         break;
+      case "tool_progress": {
+        const p = get().partial;
+        const base = p.turn === msg.turn ? p : { turn: msg.turn, text: "", thinking: "" };
+        set({ partial: { ...base, tool: msg.tool } });
+        break;
+      }
       case "delta": {
         const p = get().partial;
         const base = p.turn === msg.turn ? p : { turn: msg.turn, text: "", thinking: "" };

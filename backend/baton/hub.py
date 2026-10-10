@@ -71,9 +71,17 @@ class Hub:
     def delta(self, session_id: str, kind: str, text: str, turn: int) -> None:
         part = self.partial.get(session_id)
         if not part or part["turn"] != turn:
-            part = self.partial[session_id] = {"turn": turn, "text": "", "thinking": ""}
+            part = self.partial[session_id] = {"turn": turn, "text": "", "thinking": "", "tool": None}
         part[kind] += text
         self.broadcast(session_id, {"type": "delta", "kind": kind, "text": text, "turn": turn})
+
+    def tool_progress(self, session_id: str, turn: int, data: dict) -> None:
+        """The model is still writing a tool call (say, a long file); show what and how much."""
+        part = self.partial.get(session_id)
+        if not part or part["turn"] != turn:
+            part = self.partial[session_id] = {"turn": turn, "text": "", "thinking": "", "tool": None}
+        part["tool"] = data
+        self.broadcast(session_id, {"type": "tool_progress", "turn": turn, "tool": data})
 
     def clear_partial(self, session_id: str) -> None:
         if self.partial.pop(session_id, None) is not None:
