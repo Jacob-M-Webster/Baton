@@ -42,15 +42,17 @@ export function CatchUpBody({
   people,
   onJump,
   compact,
+  personal,
 }: {
   card: CatchUp;
   people: Participant[];
   onJump?: (seq: number) => void;
   compact?: boolean;
+  personal?: boolean;
 }) {
   const colorOf = (name: string) => people.find((p) => p.name === name)?.color || "#71717a";
   // Returning visitors see only what changed while they were away.
-  const sinceYouLeft = card.since_seq && card.new_interventions ? card.new_interventions : [];
+  const sinceYouLeft = personal && card.since_seq && card.new_interventions ? card.new_interventions : [];
   return (
     <div className={clsx("space-y-4", compact && "space-y-3.5")}>
       <Section label="Doing now">
@@ -174,6 +176,7 @@ export function CatchUpModal({
           <CatchUpBody
             card={card}
             people={people}
+            personal={!handoff}
             onJump={(s) => {
               onJump(s);
               onClose();
