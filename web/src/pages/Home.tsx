@@ -82,8 +82,8 @@ export function Home() {
             placeholder="What should the agent do?"
             className="block w-full resize-none rounded-t-2xl bg-transparent px-5 pt-4 pb-2 text-[15px] leading-relaxed outline-none placeholder:text-ink-4"
           />
-          <div className="flex flex-wrap gap-1.5 px-5 pb-3">
-            {EXAMPLES.map((ex) => (
+          <div className="flex flex-wrap items-center gap-1.5 px-5 pb-3">
+            {(choice?.provider === "demo" ? EXAMPLES.slice(0, 1) : EXAMPLES).map((ex) => (
               <button
                 key={ex}
                 onClick={() => setTask(ex)}
@@ -92,6 +92,9 @@ export function Home() {
                 {ex}
               </button>
             ))}
+            {choice?.provider === "demo" && (
+              <span className="pl-1 text-xs text-ink-4">The offline demo model follows this rehearsed task. Pick a real model for anything else.</span>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2 border-t border-line px-3 py-2.5">
             <label className="inline-flex h-9 items-center gap-2 rounded-lg border border-line bg-panel pr-1 pl-2.5 text-[13px]">

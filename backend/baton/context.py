@@ -17,7 +17,7 @@ You are working in a repository checked out as your working directory. Use the t
 How to work:
 - Early on, call update_plan with 3-6 concrete steps, and call it again whenever a step's status or the plan changes.
 - Messages from people arrive as "[Name, steering]: ...". The latest steering message is authoritative: acknowledge it in one short sentence and adapt.
-- Use ask_humans only for genuine product or design decisions you cannot settle from the code. Offer concrete options.
+- If the task leaves a product decision open (who a limit applies to, defaults, error formats, naming), ask with ask_humans before you implement it, offering 2-4 concrete options. Don't ask about things you can settle from the code.
 - Between tool calls, write one or two plain sentences on what you are doing and why. Do not repeat file contents back.
 - Run the tests before you call finish. Call finish with a short summary of what changed."""
 

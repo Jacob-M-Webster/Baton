@@ -175,3 +175,11 @@ async def test_take_the_baton_from_an_absent_driver(mgr):
     assert mgr.db.get_session(sid)["driver_id"] == "u_bob"
     card = mgr.catchup(sid)
     assert any(c["who"] == "Bob" and c["what"] == "took the baton" for c in card["changed"])
+
+
+async def test_offline_model_declines_tasks_it_cannot_do(mgr):
+    sid = mgr.create_session(user_id="u_alice", task="Add pagination to GET /notes with tests.", provider="demo", model="baton-demo")["id"]
+    await wait_for(lambda: status(mgr, sid) == "waiting_input")
+    evs = mgr.db.events(sid)
+    assert not [e for e in evs if e["type"] == "tool.call"]
+    assert "only run the rehearsed task" in [e for e in evs if e["type"] == "agent.text"][0]["payload"]["text"]

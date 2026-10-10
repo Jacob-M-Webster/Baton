@@ -18,6 +18,11 @@ from typing import AsyncIterator
 from .base import ProviderError, StreamEvent
 
 TEST_CMD = "python -m unittest -v"
+UNSUPPORTED = (
+    "I'm the offline demo model. I can only run the rehearsed task (adding rate limiting to notes-api), so I "
+    "won't pretend to do this one. Switch this session to Claude, an OpenAI model or a local model from the "
+    "model menu, and the next turn picks up from here."
+)
 
 BEATS = [
     "explore", "plan", "read_server", "read_throttle", "read_tests", "baseline",
@@ -39,6 +44,15 @@ class ScriptedProvider:
 
     # ------------------------------------------------------------------
     async def stream(self, *, model, system, messages, tools, max_tokens=4096) -> AsyncIterator[StreamEvent]:
+        task = "".join(b.get("text", "") for b in messages[0]["content"]) if messages else ""
+        if not re.search(r"rate.?limit", task, re.I):
+            # Be honest rather than pretend: this model only knows the rehearsed task.
+            await self._pause(0.6)
+            for chunk in _chunks(UNSUPPORTED, 4):
+                yield StreamEvent("text_delta", chunk)
+                await self._pause(0.03)
+            yield StreamEvent("done", data={"stop_reason": "end_turn"})
+            return
         st = _State(messages)
         beat = st.next_beat()
         await self._pause(0.9)
