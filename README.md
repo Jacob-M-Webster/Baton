@@ -62,9 +62,11 @@ cp .env.example .env    # then fill in ANTHROPIC_API_KEY and/or OPENAI_API_KEY
 | Local weights | Run Ollama, vLLM, LM Studio or llama.cpp; set `LOCAL_BASE_URL` (default `http://localhost:11434/v1`) | Models are discovered from the server's `/models` endpoint |
 | Anything else OpenAI- or Anthropic-compatible | Add it to `providers.json` (see `providers.example.json`) | OpenRouter, Groq, Together, Bedrock gateways, a team GPU box |
 
-For local weights with Ollama: `ollama pull qwen2.5-coder:7b && ollama serve`, then pick it under
-**Local** in the model menu. Small models can be unreliable at tool calling; 7B+ coder models work
-best.
+For local weights with Ollama: `ollama pull qwen2.5-coder:7b`, then start the server with a context
+window big enough for an agent loop, `OLLAMA_CONTEXT_LENGTH=32768 ollama serve`, and pick the model
+under **Local** in the model menu. Baton compacts history when it nears `LOCAL_CONTEXT_WINDOW`
+(default 32768), so keep the two in step. Small models can be unreliable at tool calling; 7B+ coder
+models work best.
 
 ### Development
 
