@@ -22,12 +22,16 @@ class AnthropicProvider:
         return self._models
 
     @staticmethod
-    def to_wire(messages: list[dict]) -> list[dict]:
+    def to_wire(messages: list[dict], model: str | None = None) -> list[dict]:
         out = []
         for m in messages:
             content = []
             for b in m["content"]:
-                if b["type"] == "text":
+                if b["type"] == "thinking":
+                    # Signed thinking must be returned verbatim during a tool loop, and only to the model that wrote it.
+                    if model and b.get("model") == model:
+                        content.append(dict(b["raw"]))
+                elif b["type"] == "text":
                     if b["text"].strip():
                         content.append({"type": "text", "text": b["text"]})
                 elif b["type"] == "tool_call":
@@ -60,7 +64,7 @@ class AnthropicProvider:
                 model=model,
                 max_tokens=max_tokens,
                 system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-                messages=self.to_wire(messages),
+                messages=self.to_wire(messages, model),
                 tools=wire_tools,
             ) as stream:
                 async for ev in stream:
@@ -76,6 +80,11 @@ class AnthropicProvider:
         except anthropic.APIConnectionError as e:
             raise ProviderError(f"Could not reach the Anthropic API: {e}") from e
 
+        for block in final.content:
+            if block.type == "thinking":
+                yield StreamEvent("thinking_block", data={"type": "thinking", "thinking": block.thinking, "signature": block.signature})
+            elif block.type == "redacted_thinking":
+                yield StreamEvent("thinking_block", data={"type": "redacted_thinking", "data": block.data})
         for block in final.content:
             if block.type == "tool_use":
                 yield StreamEvent("tool_call", data={"id": block.id, "name": block.name, "input": block.input or {}})

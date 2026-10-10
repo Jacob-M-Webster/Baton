@@ -39,6 +39,8 @@ class OpenAIProvider:
             texts = [b["text"] for b in m["content"] if b["type"] == "text" and b["text"]]
             if m["role"] == "assistant":
                 calls = [b for b in m["content"] if b["type"] == "tool_call"]
+                if not texts and not calls:
+                    continue  # e.g. only another provider's signed thinking
                 msg: dict = {"role": "assistant", "content": "\n\n".join(texts) or None}
                 if calls:
                     msg["tool_calls"] = [

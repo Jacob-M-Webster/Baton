@@ -230,3 +230,51 @@ async def test_truncated_tool_call_is_never_executed(mgr):
     res = [e for e in mgr.db.events(sid) if e["type"] == "tool.result"][0]["payload"]
     assert res["is_error"] and "token limit" in res["output"]
     assert srv.requests[0]["max_tokens"] == 4096
+
+
+async def test_signed_thinking_round_trips_to_the_same_model_only(mgr):
+    """If Claude returns thinking during a tool loop, the next request must carry it back verbatim."""
+    from starlette.responses import Response as R
+
+    def thinking_turn(tool):
+        tid, name, args = tool
+        ev = [
+            ("message_start", {"type": "message_start", "message": {"id": "m", "type": "message", "role": "assistant", "model": "x",
+                               "content": [], "stop_reason": None, "stop_sequence": None, "usage": {"input_tokens": 5, "output_tokens": 1}}}),
+            ("content_block_start", {"type": "content_block_start", "index": 0, "content_block": {"type": "thinking", "thinking": "", "signature": ""}}),
+            ("content_block_delta", {"type": "content_block_delta", "index": 0, "delta": {"type": "thinking_delta", "thinking": "Check the layout first."}}),
+            ("content_block_delta", {"type": "content_block_delta", "index": 0, "delta": {"type": "signature_delta", "signature": "sig-abc"}}),
+            ("content_block_stop", {"type": "content_block_stop", "index": 0}),
+            ("content_block_start", {"type": "content_block_start", "index": 1, "content_block": {"type": "tool_use", "id": tid, "name": name, "input": {}}}),
+            ("content_block_delta", {"type": "content_block_delta", "index": 1, "delta": {"type": "input_json_delta", "partial_json": json.dumps(args)}}),
+            ("content_block_stop", {"type": "content_block_stop", "index": 1}),
+            ("message_delta", {"type": "message_delta", "delta": {"stop_reason": "tool_use", "stop_sequence": None}, "usage": {"output_tokens": 9}}),
+            ("message_stop", {"type": "message_stop"}),
+        ]
+        return sse(ev)
+
+    class Thinker(FakeServer):
+        async def handle(self, request):
+            body = await request.json()
+            self.requests.append(body)
+            if len(self.requests) == 1:
+                return thinking_turn(("toolu_t1", "list_files", {"path": "."}))
+            return anthropic_turn("Done looking.", ("toolu_t2", "finish", {"summary": "ok"}))
+
+    srv = Thinker("anthropic", [])
+    mgr.providers["anthropic"] = AnthropicProvider("anthropic", "sk-test", "http://fake", http_client=srv.client())
+    sid = mgr.create_session(user_id="u_alice", task="t", provider="anthropic", model="claude-opus-5-5")["id"]
+    await wait_for(lambda: mgr.db.get_session(sid)["status"] == "done", timeout=10)
+
+    th = [e for e in mgr.db.events(sid) if e["type"] == "agent.thinking"][0]["payload"]
+    assert th["text"] == "Check the layout first." and th["blocks"][0]["signature"] == "sig-abc"
+    second = srv.requests[1]["messages"]
+    assistant = [m for m in second if m["role"] == "assistant"][0]["content"]
+    assert assistant[0] == {"type": "thinking", "thinking": "Check the layout first.", "signature": "sig-abc"}
+    assert assistant[1]["type"] == "tool_use"
+
+    # A different model never receives another model's signed thinking.
+    msgs = ctx.build_messages("t", "u_alice", mgr.db.events(sid), mgr.names(sid))
+    wire = AnthropicProvider.to_wire(msgs, "claude-sonnet-5-5")
+    assert not any(b["type"] == "thinking" for m in wire for b in m["content"])
+    assert all(m.get("content") or m.get("tool_calls") for m in OpenAIProvider.to_wire("s", msgs) if m["role"] == "assistant")

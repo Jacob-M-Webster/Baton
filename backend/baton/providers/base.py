@@ -7,6 +7,7 @@ Conversation format (what the runner builds from the event log):
     block = {"type": "text", "text": str}
           | {"type": "tool_call", "id": str, "name": str, "input": dict}
           | {"type": "tool_result", "id": str, "output": str, "is_error": bool}
+          | {"type": "thinking", "model": str, "raw": dict}   # signed reasoning, replayed only to the same model
 
 Adapters translate this to their wire format and stream back StreamEvents.
 """
@@ -15,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Literal, Protocol
 
-StreamKind = Literal["text_delta", "thinking_delta", "tool_call", "usage", "done"]
+StreamKind = Literal["text_delta", "thinking_delta", "thinking_block", "tool_call", "usage", "done"]
 
 
 @dataclass

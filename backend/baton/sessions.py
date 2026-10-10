@@ -512,6 +512,8 @@ class Runner:
         self.interrupted_by: str | None = None
         self.partial_text = ""
         self.partial_thinking = ""
+        self.thinking_blocks: list[dict] = []
+        self.turn_model = ""
         self.autonomous_turns = 0
         self.checkpointing = False
 
@@ -587,6 +589,8 @@ class Runner:
         turn = self._next_turn_no()
         head_before = s["head_seq"]
         self.partial_text = self.partial_thinking = ""
+        self.thinking_blocks = []
+        self.turn_model = s["model"]
         calls: list[dict] = []
         meta: dict = {}
         t0 = time.monotonic()
@@ -602,6 +606,8 @@ class Runner:
                     mgr.hub.delta(self.sid, "thinking", ev.text, turn)
                 elif ev.kind == "tool_call":
                     calls.append(ev.data)
+                elif ev.kind == "thinking_block":
+                    self.thinking_blocks.append(ev.data)
                 elif ev.kind == "usage":
                     meta["usage"] = ev.data
                 elif ev.kind == "done":
@@ -712,8 +718,12 @@ class Runner:
         self.mgr.set_status(self.sid, "waiting_input", reason="interrupted", by=by)
 
     def _persist_text(self, turn: int, interrupted: bool) -> None:
-        if self.partial_thinking.strip():
-            self.mgr.append(self.sid, "agent", "agent.thinking", {"text": self.partial_thinking, "turn": turn})
+        blocks = [] if interrupted else self.thinking_blocks
+        if self.partial_thinking.strip() or blocks:
+            text = self.partial_thinking or "\n\n".join(b.get("thinking", "") for b in blocks)
+            self.mgr.append(self.sid, "agent", "agent.thinking",
+                            {"text": text, "turn": turn, "blocks": blocks, "model": self.turn_model})
+        self.thinking_blocks = []
         if self.partial_text.strip() or interrupted:
             if self.partial_text.strip():
                 self.mgr.append(self.sid, "agent", "agent.text", {"text": self.partial_text, "turn": turn, "interrupted": interrupted})

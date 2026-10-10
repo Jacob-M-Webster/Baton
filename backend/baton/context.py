@@ -75,7 +75,13 @@ def build_messages(task: str, created_by: str, events: list[dict], names: dict[s
         if ev["seq"] <= after:
             continue
         t, p = ev["type"], ev["payload"]
-        if t == "agent.text":
+        if t == "agent.thinking" and p.get("blocks"):
+            flush()
+            if open_calls:
+                close_open_calls()
+            for raw in p["blocks"]:
+                add("assistant", {"type": "thinking", "model": p.get("model", ""), "raw": raw})
+        elif t == "agent.text":
             flush()
             if open_calls:
                 close_open_calls()
