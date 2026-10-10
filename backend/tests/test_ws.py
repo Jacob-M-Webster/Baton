@@ -60,4 +60,5 @@ def test_two_clients_share_a_session(tmp_path):
         assert files["app/server.py"] == "modified"
         listing = client.get("/api/sessions").json()["sessions"]
         assert listing[0]["progress"]["done"] == listing[0]["progress"]["total"] > 0
+        assert listing[0]["needs_decision"] is False
         assert client.get("/api/models").json()["providers"][-1]["id"] == "demo"

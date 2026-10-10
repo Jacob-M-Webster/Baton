@@ -47,6 +47,7 @@ export interface SessionSummary {
   fork_seq: number | null;
   participants: Participant[];
   progress: { done: number; total: number };
+  needs_decision: boolean;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

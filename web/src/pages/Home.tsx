@@ -169,7 +169,7 @@ export function Home() {
                     ))}
                   </div>
                   <div className="w-[150px] text-right">
-                    <StatusPill status={s.status} />
+                    <StatusPill status={s.status} decision={s.needs_decision} />
                   </div>
                   <ArrowUpRight className="size-4 text-ink-4 opacity-0 group-hover:opacity-100" />
                 </button>

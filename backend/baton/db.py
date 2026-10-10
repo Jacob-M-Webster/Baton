@@ -175,6 +175,14 @@ class DB:
         ).fetchone()
         return _event(r) if r else None
 
+    def open_decision_count(self, session_id: str) -> int:
+        r = self.conn.execute(
+            "SELECT SUM(type='agent.decision_point') - SUM(type='human.decision') FROM events "
+            "WHERE session_id=? AND type IN ('agent.decision_point', 'human.decision')",
+            (session_id,),
+        ).fetchone()
+        return int(r[0] or 0)
+
     def copy_events(self, src: str, dst: str, upto: int) -> int:
         """Copy src events 1..upto into dst (used for forks). Returns new head."""
         rows = self.conn.execute(

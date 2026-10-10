@@ -138,6 +138,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                                      "created_at", "updated_at", "parent_session_id", "fork_seq", "created_by")},
                 "participants": parts,
                 "progress": {"done": sum(1 for x in steps if x.get("status") == "done"), "total": len(steps)},
+                "needs_decision": m.db.open_decision_count(s["id"]) > 0,
             })
         return {"sessions": rows}
 

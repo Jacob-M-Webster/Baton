@@ -295,6 +295,11 @@ def heuristic_card(session: dict, events: list[dict], names: dict[str, str]) -> 
         doing = "Finished. " + clip((fin.get("summary") or last_text).splitlines()[0] if (fin.get("summary") or last_text) else "", 160)
     elif questions:
         doing = f"Paused on a decision: {questions[-1]['question']}"
+    elif status == "error":
+        err = next((ev["payload"].get("message", "") for ev in reversed(events) if ev["type"] == "session.error"), "")
+        doing = "Stopped on an error: " + clip(err, 140)
+    elif status == "waiting_input" and last_text:
+        doing = "Waiting for direction. Last update: " + clip(first_sentence(last_text), 120)
     else:
         current = next((s["title"] for s in plan if s.get("status") == "in_progress"), None)
         doing = current or clip(first_sentence(last_text) or session["task"], 160)
