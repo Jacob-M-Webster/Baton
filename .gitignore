@@ -13,5 +13,4 @@ data/
 *.db-shm
 
 # build output
-web/dist/
 .env

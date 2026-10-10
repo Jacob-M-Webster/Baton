@@ -38,7 +38,8 @@ subscribes to, with roles, hand-offs and a memory of who changed what.
 
 ## Run it
 
-Requirements: Python 3.10+ and Node 20.19+ (or 22.12+).
+Requirements: Python 3.10+. The built web app is committed in `web/dist`, so Node (20.19+ or
+22.12+) is only needed if you change the frontend; then run `REBUILD=1 ./run.sh`.
 
 ```bash
 ./run.sh            # creates .venv, builds the web app, starts the server on :8000
