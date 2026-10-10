@@ -10,15 +10,16 @@ interface Toast {
   text: string;
   kind: Kind;
   data?: { userId: string; seq: number };
+  action?: { label: string; run: () => void };
 }
 
 const useToasts = create<{ items: Toast[] }>(() => ({ items: [] }));
 let next = 1;
 
-export function toast(text: string, kind: Kind = "info", data?: Toast["data"]) {
+export function toast(text: string, kind: Kind = "info", data?: Toast["data"], action?: Toast["action"]) {
   const id = next++;
-  useToasts.setState((s) => ({ items: [...s.items.slice(-3), { id, text, kind, data }] }));
-  if (kind !== "request") window.setTimeout(() => dismiss(id), kind === "error" ? 6000 : 4500);
+  useToasts.setState((s) => ({ items: [...s.items.slice(-3), { id, text, kind, data, action }] }));
+  if (kind !== "request") window.setTimeout(() => dismiss(id), kind === "error" ? 6000 : action ? 8000 : 4500);
 }
 
 function dismiss(id: number) {
@@ -41,6 +42,17 @@ export function Toasts() {
           {(t.kind === "baton" || t.kind === "request") && <BatonMark className="mt-0.5 size-4 shrink-0" />}
           <div className="min-w-0 flex-1">
             <p className="leading-snug text-ink">{t.text}</p>
+            {t.action && (
+              <button
+                className="mt-2 rounded-md border border-line px-2.5 py-1 text-xs font-medium text-ink-2 hover:bg-sunken"
+                onClick={() => {
+                  t.action!.run();
+                  dismiss(t.id);
+                }}
+              >
+                {t.action.label}
+              </button>
+            )}
             {t.kind === "request" && t.data && (
               <div className="mt-2.5 flex gap-2">
                 <button

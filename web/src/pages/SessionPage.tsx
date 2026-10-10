@@ -68,8 +68,25 @@ export function SessionPage({ id }: { id: string }) {
     return m;
   }, [events]);
 
+  // Which step each other person is looking at, snapped to a rendered item.
+  const focusBySeq = useMemo(() => {
+    const out: Record<number, Participant[]> = {};
+    const rowKinds = new Set(["text", "tool", "plan", "decision", "finish", "human"]);
+    const seqs = items.filter((it) => rowKinds.has(it.kind)).map((it) => (it.kind === "decision" ? it.point?.seq ?? it.seq : it.seq));
+    for (const p of participants) {
+      if (p.user_id === me || !p.online) continue;
+      const f = p.viewing_seq ?? p.focus_seq;
+      if (f == null) continue;
+      let best: number | null = null;
+      for (const s of seqs) if (s <= f && (best === null || s > best)) best = s;
+      if (best !== null) (out[best] ||= []).push(p);
+    }
+    return out;
+  }, [participants, items, me]);
+
   const ctx: Ctx = {
     me,
+    focusBySeq,
     modelOfTurn,
     isDriver,
     driverId: session?.driver_id ?? null,
@@ -94,11 +111,47 @@ export function SessionPage({ id }: { id: string }) {
     [viewSeq, setViewSeq],
   );
 
+  useEffect(() => {
+    const onJump = (e: Event) => {
+      const { seq, openThread: open } = (e as CustomEvent<{ seq: number; openThread: boolean }>).detail;
+      if (open) setOpenThread(seq);
+      jump(seq);
+    };
+    window.addEventListener("baton:jump", onJump);
+    return () => window.removeEventListener("baton:jump", onJump);
+  }, [jump]);
+
   // Stick to the bottom while live, unless the reader scrolled up.
   useLayoutEffect(() => {
     const el = scroller.current;
     if (el && live && atBottom) el.scrollTop = el.scrollHeight;
   }, [items.length, partial.text, partial.thinking, live, atBottom, replayed, !!session]);
+
+  // Tell others which step I'm reading (null while following live at the bottom).
+  const focusTimer = useRef<number | undefined>(undefined);
+  const lastFocus = useRef<number | null>(null);
+  const reportFocus = (el: HTMLElement, bottom: boolean) => {
+    window.clearTimeout(focusTimer.current);
+    focusTimer.current = window.setTimeout(() => {
+      let seq: number | null = null;
+      if (!bottom) {
+        const mid = el.getBoundingClientRect().top + el.clientHeight * 0.4;
+        let bestDist = Infinity;
+        el.querySelectorAll<HTMLElement>("[data-seq]").forEach((n) => {
+          const r = n.getBoundingClientRect();
+          const d = r.top <= mid && r.bottom >= mid ? 0 : Math.min(Math.abs(r.top - mid), Math.abs(r.bottom - mid));
+          if (d < bestDist) {
+            bestDist = d;
+            seq = Number(n.dataset.seq);
+          }
+        });
+      }
+      if (seq !== lastFocus.current) {
+        lastFocus.current = seq;
+        send({ type: "focus", seq });
+      }
+    }, 200);
+  };
 
   // Follow my own actions, and the moments that need me, even if I had scrolled up.
   const lastEv = events[events.length - 1];
@@ -211,7 +264,9 @@ export function SessionPage({ id }: { id: string }) {
             className="min-h-0 flex-1 overflow-y-auto"
             onScroll={(e) => {
               const el = e.currentTarget;
-              setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+              const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+              setAtBottom(bottom);
+              reportFocus(el, bottom);
             }}
           >
             <div className="mx-auto w-full max-w-[760px] pt-8 pr-12 pb-6 pl-4 sm:pr-16 sm:pl-6">

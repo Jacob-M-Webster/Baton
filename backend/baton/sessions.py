@@ -83,7 +83,8 @@ class SessionManager:
                 "user_id": p["user_id"], "name": p["name"], "color": p["color"], "role": p["role"],
                 "is_owner": bool(s and s["created_by"] == p["user_id"]),
                 "online": bool(live.get("online")), "typing": bool(live.get("typing")),
-                "viewing_seq": live.get("viewing_seq"), "last_seen_seq": p["last_seen_seq"],
+                "viewing_seq": live.get("viewing_seq"), "focus_seq": live.get("focus_seq"),
+                "last_seen_seq": p["last_seen_seq"],
                 "last_active": p["last_active"],
             })
         return out

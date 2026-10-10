@@ -27,6 +27,7 @@ export interface Participant {
   online: boolean;
   typing: boolean;
   viewing_seq: number | null;
+  focus_seq: number | null;
   last_seen_seq: number;
   last_active: number;
 }

@@ -84,11 +84,12 @@ def main() -> int:
         bob.wait_for_timeout(500)
         shot(bob, "bob-commented")
 
-        # 4. Alice, the driver, sends Bob's comment to the agent.
-        alice.get_by_text("Decision needed").wait_for(timeout=40000)
-        alice_row = alice.locator("[data-seq]").filter(has=alice.get_by_text("app/middleware/legacy_throttle.py")).first
-        alice_row.get_by_role("button", name="Comment on this step").click()
+        # 4. Alice gets a notification, jumps to Bob's comment, and sends it to the agent.
+        alice.get_by_role("button", name="View and send to agent").click()
+        alice.wait_for_timeout(900)
+        shot(alice, "alice-sees-bob-comment")
         alice.get_by_role("button", name="Send to agent").first.click()
+        alice.get_by_text("Decision needed").wait_for(timeout=40000)
         alice.wait_for_timeout(800)
         shot(alice, "alice-promoted")
 

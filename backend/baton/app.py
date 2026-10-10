@@ -295,6 +295,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     v = msg.get("seq")
                     conn.viewing_seq = int(v) if v is not None else None
                     m.broadcast_presence(sid)
+                elif kind == "focus":
+                    v = msg.get("seq")
+                    new = int(v) if v is not None else None
+                    if new != conn.focus_seq:
+                        conn.focus_seq = new
+                        m.broadcast_presence(sid)
                 elif kind == "seen":
                     m.mark_seen(sid, user_id, int(msg.get("seq") or 0))
                 elif kind == "comment":

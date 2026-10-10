@@ -16,6 +16,7 @@ import { CommentThread, useCommentsFor } from "./Comments";
 
 export interface Ctx {
   me: string;
+  focusBySeq: Record<number, Participant[]>;
   modelOfTurn: Record<number, string>;
   isDriver: boolean;
   driverId: string | null;
@@ -60,6 +61,15 @@ function Row({
       )}
     >
       {children}
+      {ctx.focusBySeq[seq]?.length ? (
+        <div className="absolute top-0.5 -left-1 flex -translate-x-full flex-col gap-0.5 pr-1.5 sm:pr-2">
+          {ctx.focusBySeq[seq].map((p) => (
+            <span key={p.user_id} className="animate-rise" title={`${p.name} is looking at this`}>
+              <Avatar name={p.name} color={p.color} size={16} />
+            </span>
+          ))}
+        </div>
+      ) : null}
       {commentable && (
         <div className="absolute top-0 -right-10 flex flex-col items-center gap-1 sm:-right-11">
           <button

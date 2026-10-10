@@ -125,7 +125,15 @@ function Overview({
               <div className="min-w-0 flex-1">
                 <div className="truncate font-medium text-ink">{p.name}</div>
                 <div className="text-[11.5px] text-ink-4">
-                  {p.typing ? "typing…" : p.viewing_seq !== null ? `looking at step #${p.viewing_seq}` : p.online ? "watching live" : "away"}
+                  {p.typing
+                    ? "typing…"
+                    : p.viewing_seq !== null
+                      ? `rewound to step #${p.viewing_seq}`
+                      : p.focus_seq !== null && p.online
+                        ? `reading step #${p.focus_seq}`
+                        : p.online
+                          ? "watching live"
+                          : "away"}
                 </div>
               </div>
               {p.user_id === session.driver_id ? (

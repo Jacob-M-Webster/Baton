@@ -164,9 +164,21 @@ class SessionSocket {
         set({ partial: { ...base, [msg.kind]: base[msg.kind as "text" | "thinking"] + msg.text } });
         break;
       }
-      case "comment":
+      case "comment": {
+        const isNew = !get().comments[msg.comment.id];
         set({ comments: { ...get().comments, [msg.comment.id]: msg.comment } });
+        const c = msg.comment;
+        if (isNew && c.user_id !== this.userId) {
+          const iDrive = get().session?.driver_id === this.userId;
+          toast(
+            `${c.author_name} commented on step #${c.event_seq}: “${c.body.length > 90 ? c.body.slice(0, 89) + "…" : c.body}”`,
+            "info",
+            undefined,
+            { label: iDrive ? "View and send to agent" : "View", run: () => jumpTo(c.event_seq, true) },
+          );
+        }
         break;
+      }
       case "catchup_updated":
         set({ catchupTick: get().catchupTick + 1 });
         break;
@@ -178,6 +190,11 @@ class SessionSocket {
 }
 
 let socket: SessionSocket | null = null;
+
+/** Ask the session page to scroll to a step (and optionally open its comments). */
+export function jumpTo(seq: number, openThread = false) {
+  window.dispatchEvent(new CustomEvent("baton:jump", { detail: { seq, openThread } }));
+}
 
 export function connectSession(sid: string, userId: string, role: string | null, comments: Comment[]) {
   socket?.close();
@@ -214,6 +231,6 @@ function notify(e: BatonEvent, me: string) {
   } else if (e.type === "agent.decision_point" && iDrive) {
     toast("The agent needs your decision", "attn");
   } else if (e.type === "human.message" && e.payload.mode === "suggest" && iDrive && e.actor !== me) {
-    toast(`${nameOf(e.actor)} suggested: ${e.payload.text}`, "info");
+    toast(`${nameOf(e.actor)} suggested: ${e.payload.text}`, "info", undefined, { label: "View", run: () => jumpTo(e.seq) });
   }
 }
