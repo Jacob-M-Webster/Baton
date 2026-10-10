@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import difflib
 import os
+import re
 import shutil
 import signal
 import sys
@@ -135,6 +136,16 @@ TOOL_SPECS: list[dict] = [
 
 # Tools handled by the runner itself rather than the sandbox.
 CONTROL_TOOLS = {"update_plan", "ask_humans", "finish"}
+
+# The local sandbox runs on someone's own laptop. This is not a security boundary (use the container
+# mode for that); it stops the obvious foot-guns from ever running during a live session.
+BLOCKED_COMMANDS = [
+    (re.compile(r"(^|[;&|]\s*)sudo\b"), "sudo is not available in the sandbox"),
+    (re.compile(r"\brm\s+(-\w*\s+)*-\w*[rf]\w*\s+(-\w+\s+)*(/|~|\$HOME)(\s|$|/\*)"), "refusing to delete outside the repository"),
+    (re.compile(r":\(\)\s*\{\s*:\|:&\s*\};:"), "fork bombs are not allowed"),
+    (re.compile(r"\b(curl|wget)\b[^|]*\|\s*(ba|z)?sh\b"), "piping downloads into a shell is not allowed"),
+    (re.compile(r"\b(mkfs|shutdown|reboot)\b"), "system commands are not allowed"),
+]
 
 
 def list_sample_repos() -> list[dict]:
@@ -327,6 +338,10 @@ async def execute_tool(ws: Workspace, name: str, args: dict) -> dict:
         elif name == "edit_file":
             result["output"], result["diff"] = ws.edit_file(args["path"], args["old_str"], args.get("new_str", ""))
         elif name == "run_command":
+            if ws.runtime == "local":
+                for pattern, why in BLOCKED_COMMANDS:
+                    if pattern.search(args["command"]):
+                        raise ToolError(f"{why}. Commands run in the repository; keep changes inside it.")
             out, code = await ws.run_command(args["command"], args.get("timeout_seconds") or 60)
             text, truncated = truncate(out)
             result["output"] = f"{text}\n[exit code {code}]".lstrip()

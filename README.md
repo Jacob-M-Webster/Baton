@@ -193,7 +193,9 @@ scripts/             browser-driven rehearsals of the demo
 ## Security notes (hackathon scope)
 
 With `BATON_SANDBOX=local` (the default) agent commands run as a subprocess in the session's
-workspace with a scrubbed environment, which is fine for a demo on your own machine. Set
+workspace with a scrubbed environment, which is fine for a demo on your own machine; obviously
+destructive commands (`sudo`, deleting `/` or `~`, piping downloads into a shell) are refused, but
+that guard is a seatbelt, not a sandbox. Set
 `BATON_SANDBOX=docker` (or `podman`) to run each command in a throwaway container with no network
 (pre-pull the image, `python:3.12-slim` by default; this mode is implemented but was not exercised
 in our test environment, which has no Docker daemon).
