@@ -588,7 +588,8 @@ class Runner:
         t0 = time.monotonic()
 
         async def stream_model() -> None:
-            async for ev in provider.stream(model=s["model"], system=ctx.SYSTEM_PROMPT, messages=messages, tools=TOOL_SPECS):
+            async for ev in provider.stream(model=s["model"], system=ctx.SYSTEM_PROMPT, messages=messages, tools=TOOL_SPECS,
+                                            max_tokens=pconf.max_output_tokens):
                 if ev.kind == "text_delta":
                     self.partial_text += ev.text
                     mgr.hub.delta(self.sid, "text", ev.text, turn)
@@ -618,12 +619,17 @@ class Runner:
             return
 
         # Record every call first so viewers see the whole intended step, then execute in order.
-        call_events = []
         for c in calls:
-            call_events.append(mgr.append(self.sid, "agent", "tool.call", {
+            mgr.append(self.sid, "agent", "tool.call", {
                 "call_id": c["id"], "name": c["name"], "input": c.get("input") or {}, "turn": turn,
-            }))
+            })
         self._end_turn(turn, s, meta, t0)
+        if calls and meta.get("stop_reason") in ("max_tokens", "length"):
+            # The output was cut off, so the last call's arguments may be truncated. Never run them.
+            for c in calls:
+                self._result(c["id"], "Not run: your reply hit the output token limit and this call may be "
+                             "incomplete. Make smaller edits (edit_file) or split large files.", error=True)
+            return
 
         ask: dict | None = None
         finish: dict | None = None

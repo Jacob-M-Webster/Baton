@@ -1,0 +1,19 @@
+[
+  {
+    "id": "openrouter",
+    "label": "OpenRouter",
+    "kind": "openai",
+    "base_url": "https://openrouter.ai/api/v1",
+    "api_key_env": "OPENROUTER_API_KEY",
+    "models": ["anthropic/claude-sonnet-5-5", "meta-llama/llama-4-maverick"]
+  },
+  {
+    "id": "vllm",
+    "label": "vLLM (team GPU box)",
+    "kind": "openai",
+    "base_url": "http://gpu-box.local:8000/v1",
+    "api_key": "unused",
+    "discover_models": true,
+    "context_window": 65536
+  }
+]

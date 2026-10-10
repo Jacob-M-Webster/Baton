@@ -201,3 +201,32 @@ async def test_switch_from_local_model_to_claude_mid_session(mgr):
     mgr.catchup(sid)
     await wait_for(lambda: sid in mgr._catchup_cache, timeout=5)
     assert mgr.catchup(sid)["doing"] == "Writing tests"
+
+
+async def test_truncated_tool_call_is_never_executed(mgr):
+    """A reply cut off at the token limit must not run its (possibly partial) tool call."""
+    from starlette.responses import Response as R
+
+    class Truncating(FakeServer):
+        async def handle(self, request):
+            body = await request.json()
+            self.requests.append(body)
+            if len(self.requests) == 1:
+                raw = "".join(
+                    f"data: {json.dumps(x)}\n\n" for x in [
+                        {"id": "c", "object": "chat.completion.chunk", "created": 1, "model": "m", "choices": [{"index": 0, "delta": {"tool_calls": [
+                            {"index": 0, "id": "call_w", "type": "function", "function": {"name": "write_file", "arguments": '{"path": "app/x.py", "content": "def f(): ret'}}]}, "finish_reason": None}]},
+                        {"id": "c", "object": "chat.completion.chunk", "created": 1, "model": "m", "choices": [{"index": 0, "delta": {}, "finish_reason": "length"}]},
+                    ]
+                ) + "data: [DONE]\n\n"
+                return R(raw, media_type="text/event-stream")
+            return openai_turn("Okay, stopping here.", None)
+
+    srv = Truncating("openai", [])
+    mgr.providers["local"] = OpenAIProvider("local", "local", "http://fake/v1", http_client=srv.client())
+    sid = mgr.create_session(user_id="u_alice", task="t", provider="local", model="m")["id"]
+    await wait_for(lambda: mgr.db.get_session(sid)["status"] == "waiting_input", timeout=10)
+    assert mgr.workspace(sid).read_text("app/x.py") is None
+    res = [e for e in mgr.db.events(sid) if e["type"] == "tool.result"][0]["payload"]
+    assert res["is_error"] and "token limit" in res["output"]
+    assert srv.requests[0]["max_tokens"] == 4096

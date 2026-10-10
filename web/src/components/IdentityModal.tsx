@@ -8,7 +8,7 @@ import { Logo } from "./Logo";
 export function IdentityModal({ onClose }: { onClose?: () => void }) {
   const { user, setUser } = useIdentity();
   const [name, setName] = useState(user?.name || "");
-  const [color, setColor] = useState(user?.color || PALETTE[0]);
+  const [color, setColor] = useState(() => user?.color || PALETTE[Math.floor(Math.random() * PALETTE.length)]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 

@@ -61,6 +61,10 @@ class OpenAIProvider:
             for t in tools
         ]
         kwargs: dict = {"model": model, "messages": self.to_wire(system, messages), "tools": wire_tools, "stream": True}
+        if self.base_url:  # local / compatible servers often default to a tiny output cap
+            kwargs["max_tokens"] = max_tokens
+        else:
+            kwargs["max_completion_tokens"] = max_tokens
         if self._stream_usage:
             kwargs["stream_options"] = {"include_usage": True}
         try:
@@ -123,7 +127,8 @@ class OpenAIProvider:
                 "output_tokens": usage.completion_tokens or 0,
                 "cached_tokens": cached,
             })
-        yield StreamEvent("done", data={"stop_reason": "tool_use" if calls else (finish or "stop")})
+        stop = "length" if finish == "length" else ("tool_use" if calls else (finish or "stop"))
+        yield StreamEvent("done", data={"stop_reason": stop})
 
     async def complete(self, *, model, system, prompt, max_tokens=1024) -> str:
         try:

@@ -37,6 +37,7 @@ class ProviderConfig:
     base_url: str | None = None
     summary_model: str | None = None
     context_window: int = 200_000
+    max_output_tokens: int = 16_000
     discover_models: bool = False  # ask the endpoint's /models for its list
     note: str = ""
 
@@ -91,6 +92,7 @@ def load_settings(**overrides) -> Settings:
             base_url=os.environ.get("LOCAL_BASE_URL", "http://localhost:11434/v1"),
             summary_model=os.environ.get("LOCAL_SUMMARY_MODEL") or None,
             context_window=int(os.environ.get("LOCAL_CONTEXT_WINDOW", "32768")),
+            max_output_tokens=int(os.environ.get("LOCAL_MAX_OUTPUT_TOKENS", "4096")),
             discover_models=True,
             note="Any OpenAI-compatible server: Ollama, vLLM, LM Studio, llama.cpp",
         ),
