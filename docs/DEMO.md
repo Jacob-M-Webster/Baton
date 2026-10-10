@@ -39,6 +39,11 @@ Session resumed from event #N, nothing lost.*
 
 ## If something goes wrong
 
+- **Live demo is impossible (no power, no network, broken laptop):** play
+  [`docs/baton-demo.mp4`](baton-demo.mp4), the full two-person flow side by side. Re-record it on
+  your own machine, with your own model if you like:
+  `python scripts/e2e_demo.py --url http://localhost:8000 --video rec` (needs `pip install imageio-ffmpeg`).
+
 - **Network between laptops fails:** Bob joins on Alice's laptop in a private window with
   `?as=Bob` appended to the URL. Everything else is identical.
 - **Claude is slow or erroring:** the error appears in the timeline. Start a fresh session on

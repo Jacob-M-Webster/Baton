@@ -8,6 +8,7 @@ laptops. Requires: pip install playwright && python -m playwright install chromi
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -27,6 +28,7 @@ def main() -> int:
     ap.add_argument("--dark", action="store_true")
     ap.add_argument("--headed", action="store_true")
     ap.add_argument("--size", default="1440x900", help="viewport, e.g. 1280x800")
+    ap.add_argument("--video", help="record both browsers into this folder and compose a side-by-side MP4")
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -35,13 +37,16 @@ def main() -> int:
     def shot(page: Page, name: str) -> None:
         shot_n[0] += 1
         page.screenshot(path=str(out / f"{shot_n[0]:02d}-{name}.png"))
+        if args.video:
+            page.wait_for_timeout(1800)  # give viewers of the recording a moment on each beat
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=not args.headed)
         scheme = "dark" if args.dark else "light"
         w, h = (int(x) for x in args.size.split("x"))
-        alice_ctx = browser.new_context(viewport={"width": w, "height": h}, color_scheme=scheme)
-        bob_ctx = browser.new_context(viewport={"width": w, "height": h}, color_scheme=scheme)
+        rec = {"record_video_dir": args.video, "record_video_size": {"width": w, "height": h}} if args.video else {}
+        alice_ctx = browser.new_context(viewport={"width": w, "height": h}, color_scheme=scheme, **rec)
+        bob_ctx = browser.new_context(viewport={"width": w, "height": h}, color_scheme=scheme, **rec)
         alice, bob = alice_ctx.new_page(), bob_ctx.new_page()
         for pg in (alice, bob):
             pg.on("pageerror", lambda e: print("PAGE ERROR:", e, file=sys.stderr))
@@ -112,8 +117,27 @@ def main() -> int:
         bob.wait_for_timeout(500)
         shot(bob, "bob-files")
         print("OK", session_url)
+        videos = (alice.video, bob.video) if args.video else None
+        bob_ctx.close()
         browser.close()
+        if videos:
+            compose(Path(videos[0].path()), Path(videos[1].path()), Path(args.video) / "baton-demo.mp4")
     return 0
+
+
+def compose(alice: Path, bob: Path, out: Path) -> None:
+    """Alice's and Bob's screens side by side. Alice leaves early, so her last frame holds."""
+    try:
+        import imageio_ffmpeg
+    except ImportError:
+        print("pip install imageio-ffmpeg to compose the side-by-side video; raw recordings are in", out.parent)
+        return
+    graph = ("[0:v]tpad=stop_mode=clone:stop_duration=300,scale=1280:-2[a];"
+             "[1:v]scale=1280:-2[b];[a][b]hstack=inputs=2:shortest=1[v]")
+    subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error", "-i", str(alice), "-i", str(bob),
+                    "-filter_complex", graph, "-map", "[v]", "-c:v", "libx264", "-crf", "30", "-preset", "veryfast",
+                    "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out)], check=True)
+    print("Side-by-side recording:", out)
 
 
 if __name__ == "__main__":

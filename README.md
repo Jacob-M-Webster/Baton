@@ -76,6 +76,7 @@ cd web && npm run dev                            # Vite on :5173, proxies /api t
 python scripts/e2e_demo.py --out shots           # plays the two-person demo in two real browsers
 python scripts/e2e_restart.py --out shots        # kills the server mid-run and checks the session resumes
 python scripts/e2e_controls.py --out shots       # interrupt, steer, switch model mid-session, fork
+python scripts/e2e_demo.py --video rec           # also records both browsers into a side-by-side MP4
 ```
 
 The e2e scripts need `python -m playwright install chromium` once.
@@ -83,7 +84,9 @@ The e2e scripts need `python -m playwright install chromium` once.
 ## The 3-minute demo
 
 Full runbook with timings, fallbacks and Q&A prep: [docs/DEMO.md](docs/DEMO.md). The pitch deck
-lives in the app at `/pitch` and ends on a QR code that opens the live demo.
+lives in the app at `/pitch` and ends on a QR code that opens the live demo. A recording of the
+whole flow, Alice's screen on the left and Bob's on the right, is in
+[docs/baton-demo.mp4](docs/baton-demo.mp4) (offline demo model, recorded by the browser test).
 
 Two laptops, Alice and Bob. Model: whichever is configured (Offline demo works without network).
 
