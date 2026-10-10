@@ -263,6 +263,15 @@ def heuristic_card(session: dict, events: list[dict], names: dict[str, str]) -> 
                 touched.append(path)
         if c.get("name") == "run_command":
             last_test = ev["payload"]
+    read = []
+    for c in calls.values():
+        path = (c.get("input") or {}).get("path")
+        if c.get("name") == "read_file" and path and path not in read and path not in touched:
+            read.append(path)
+    if read:
+        names_ = [r.rsplit("/", 1)[-1] for r in read]
+        more = f" and {len(names_) - 3} more" if len(names_) > 3 else ""
+        done.append(f"Read {len(read)} file{'s' if len(read) != 1 else ''}: " + ", ".join(names_[:3]) + more)
     if touched:
         done.append("Changed " + ", ".join(f"`{p}`" for p in touched[:4]))
     if last_test is not None:

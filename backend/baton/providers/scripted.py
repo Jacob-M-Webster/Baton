@@ -44,6 +44,7 @@ class ScriptedProvider:
         await self._pause(0.9)
 
         text, think, call = self._beat(beat, st)
+        calls = call if isinstance(call, list) else ([call] if call else [])
         prefix = st.acknowledgement()
         if prefix and beat not in ("adjust",):
             text = f"{prefix}\n\n{text}" if text else prefix
@@ -55,18 +56,17 @@ class ScriptedProvider:
         for chunk in _chunks(text, 4):
             yield StreamEvent("text_delta", chunk)
             await self._pause(0.03)
-        if call:
-            name, args = call
+        for name, args in calls:
             yield StreamEvent("tool_call", data={"id": f"call_demo_{beat}_{uuid.uuid4().hex[:8]}", "name": name, "input": args})
         n_in = sum(len(str(m["content"])) for m in messages) // 4
         yield StreamEvent("usage", data={"input_tokens": n_in, "output_tokens": (len(text) + len(think)) // 4 + 40, "cached_tokens": 0})
-        yield StreamEvent("done", data={"stop_reason": "tool_use" if call else "end_turn"})
+        yield StreamEvent("done", data={"stop_reason": "tool_use" if calls else "end_turn"})
 
     async def _pause(self, seconds: float) -> None:
         await asyncio.sleep(seconds / self.speed)
 
     # ------------------------------------------------------------------
-    def _beat(self, beat: str, st: "_State") -> tuple[str, str, tuple[str, dict] | None]:
+    def _beat(self, beat: str, st: "_State") -> tuple[str, str, tuple[str, dict] | list[tuple[str, dict]] | None]:
         legacy = not st.deprecated_feedback
         if beat == "explore":
             return "I'll start by getting oriented in the repository.", "", ("list_files", {"path": "."})
@@ -101,14 +101,17 @@ class ScriptedProvider:
                 "The task doesn't say who a 'client' is. Keying on the API key is standard for authenticated "
                 "APIs, but anonymous traffic would then share one bucket. IP-based limits are simpler but "
                 "punish users behind a shared NAT. This is the team's call, not mine.",
-                ("ask_humans", {
-                    "question": "How should clients be identified for rate limiting?",
-                    "options": [
-                        "Per API key (X-API-Key), falling back to client IP",
-                        "Per client IP only",
-                        "One global limit for the whole service",
-                    ],
-                }),
+                [
+                    ("update_plan", {"steps": _plan(1, legacy=True)}),
+                    ("ask_humans", {
+                        "question": "How should clients be identified for rate limiting?",
+                        "options": [
+                            "Per API key (X-API-Key), falling back to client IP",
+                            "Per client IP only",
+                            "One global limit for the whole service",
+                        ],
+                    }),
+                ],
             )
         if beat == "adjust":
             strategy = st.strategy
@@ -132,13 +135,13 @@ class ScriptedProvider:
             return (
                 "Wiring it in as the outermost middleware, so rejected requests never reach the app.",
                 "",
-                ("edit_file", {
+                [("update_plan", {"steps": _plan(3, legacy=not st.deprecated_feedback)}), ("edit_file", {
                     "path": "app/server.py",
                     "old_str": "    app = RequestLogger(app)\n    return app\n",
                     "new_str": "    app = RequestLogger(app)\n"
                     f"    app = RateLimiter(app, capacity=60, refill_rate=1.0, key_func={_key_func(st.strategy)})\n"
                     "    return app\n",
-                }),
+                })],
             )
         if beat == "wire_import":
             return (
@@ -156,7 +159,8 @@ class ScriptedProvider:
                 "Now tests: under the limit, over the limit, isolation between clients, refill over time, "
                 "the health-check exemption, and that the real app is wired up.",
                 "",
-                ("write_file", {"path": "tests/test_rate_limit.py", "content": _tests(st.strategy)}),
+                [("update_plan", {"steps": _plan(4, legacy=legacy)}),
+                 ("write_file", {"path": "tests/test_rate_limit.py", "content": _tests(st.strategy)})],
             )
         if beat == "run_tests":
             return "", "", ("run_command", {"command": TEST_CMD})
@@ -192,15 +196,16 @@ class _State:
         self.human: list[tuple[str, str]] = []  # (author, text)
         self.answer = ""
         self.trailing: list[tuple[str, str]] = []
-        call_beats: dict[str, str] = {}
+        ask_ids: set[str] = set()
         for i, m in enumerate(messages):
             for b in m["content"]:
                 if b["type"] == "tool_call":
                     mm = re.match(r"call_demo_([a-z_]+?)_[0-9a-f]{8}$", b["id"])
                     if mm:
-                        call_beats[b["id"]] = mm.group(1)
                         self.done.add(mm.group(1))
-                elif b["type"] == "tool_result" and call_beats.get(b["id"]) == "ask":
+                    if b["name"] == "ask_humans":
+                        ask_ids.add(b["id"])
+                elif b["type"] == "tool_result" and b["id"] in ask_ids:
                     self.answer = b["output"]
                 elif b["type"] == "text" and m["role"] == "user" and i > 0:
                     self.human.append(_author(b["text"]))
