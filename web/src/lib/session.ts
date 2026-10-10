@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { BatonEvent, Comment, Participant, Session } from "./types";
-import { toast } from "../components/Toasts";
+import { dismissTag, toast } from "../components/Toasts";
 
 type Conn = "connecting" | "open" | "reconnecting" | "closed";
 export type ToolProgress = { name: string; chars: number; target: string };
@@ -234,9 +234,13 @@ function notify(e: BatonEvent, me: string) {
   const s = get().session;
   const iDrive = s?.driver_id === me;
   if (e.type === "control.driver_requested" && iDrive && e.actor !== me) {
-    toast(`${nameOf(e.actor)} is asking for the baton`, "request", { userId: e.actor, seq: e.seq });
+    toast(`${nameOf(e.actor)} is asking for the baton`, "request", { userId: e.actor, seq: e.seq }, undefined, "request");
+  } else if (e.type === "control.driver_changed" || e.type === "control.driver_declined") {
+    dismissTag("request");
   } else if (e.type === "agent.decision_point" && iDrive) {
-    toast("The agent needs your decision", "attn");
+    toast("The agent needs your decision", "attn", undefined, undefined, "decision");
+  } else if (e.type === "human.decision") {
+    dismissTag("decision");
   } else if (e.type === "human.message" && e.payload.mode === "suggest" && iDrive && e.actor !== me) {
     toast(`${nameOf(e.actor)} suggested: ${e.payload.text}`, "info", undefined, { label: "View", run: () => jumpTo(e.seq) });
   }

@@ -45,16 +45,22 @@ export function Avatar({
   );
 }
 
-export function AgentAvatar({ size = 24 }: { size?: number }) {
+const PROVIDER_MARK: Record<string, string> = { anthropic: "A", openai: "O", local: "L", demo: "D", external: "E" };
+
+/** The agent's avatar carries the mark of the provider whose model wrote the message. */
+export function AgentAvatar({ size = 24, provider }: { size?: number; provider?: string }) {
+  const mark = provider ? PROVIDER_MARK[provider] ?? provider[0]?.toUpperCase() : null;
   return (
     <span
-      className="grid shrink-0 place-items-center rounded-md bg-ink text-canvas"
-      style={{ width: size, height: size }}
+      className="grid shrink-0 place-items-center rounded-md bg-ink font-mono font-semibold text-canvas"
+      style={{ width: size, height: size, fontSize: size * 0.48 }}
       aria-hidden
     >
-      <svg viewBox="0 0 16 16" style={{ width: size * 0.58, height: size * 0.58 }}>
-        <path d="M8 1.5 9.6 6.4 14.5 8 9.6 9.6 8 14.5 6.4 9.6 1.5 8 6.4 6.4Z" fill="currentColor" />
-      </svg>
+      {mark ?? (
+        <svg viewBox="0 0 24 24" style={{ width: size * 0.62, height: size * 0.62 }}>
+          <rect x="4" y="10.2" width="16" height="3.6" rx="1.8" transform="rotate(-35 12 12)" fill="currentColor" />
+        </svg>
+      )}
     </span>
   );
 }

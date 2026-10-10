@@ -74,10 +74,16 @@ export function SessionPage({ id }: { id: string }) {
   const isDriver = session?.driver_id === me;
   const live = viewSeq === null;
 
-  const modelOfTurn = useMemo(() => {
+  const [modelOfTurn, providerOfTurn] = useMemo(() => {
     const m: Record<number, string> = {};
-    for (const e of events) if (e.type === "agent.turn") m[e.payload.turn] = e.payload.model;
-    return m;
+    const p: Record<number, string> = {};
+    for (const e of events) {
+      if (e.type === "agent.turn") {
+        m[e.payload.turn] = e.payload.model;
+        p[e.payload.turn] = e.payload.provider;
+      }
+    }
+    return [m, p];
   }, [events]);
 
   // Which step each other person is looking at, snapped to a rendered item.
@@ -101,6 +107,7 @@ export function SessionPage({ id }: { id: string }) {
     liveSince,
     focusBySeq,
     modelOfTurn,
+    providerOfTurn,
     isDriver,
     driverId: session?.driver_id ?? null,
     people,
@@ -318,11 +325,11 @@ export function SessionPage({ id }: { id: string }) {
                   </Fragment>
                 ))}
                 {streaming && partial.thinking && !partial.text && <ThinkingItem streaming={partial.thinking} />}
-                {streaming && partial.text && <AgentText streaming={partial.text} model={session.model} />}
+                {streaming && partial.text && <AgentText streaming={partial.text} model={session.model} provider={session.provider} />}
                 {drafting && <Drafting tool={drafting} />}
                 {working && (
                   <div className="flex items-center gap-3 py-1">
-                    <AgentAvatar size={22} />
+                    <AgentAvatar size={22} provider={session.provider} />
                     <span className="shimmer-text text-[13.5px] font-medium">Thinking</span>
                   </div>
                 )}

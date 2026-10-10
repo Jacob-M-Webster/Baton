@@ -11,15 +11,21 @@ interface Toast {
   kind: Kind;
   data?: { userId: string; seq: number };
   action?: { label: string; run: () => void };
+  tag?: string;
 }
 
 const useToasts = create<{ items: Toast[] }>(() => ({ items: [] }));
 let next = 1;
 
-export function toast(text: string, kind: Kind = "info", data?: Toast["data"], action?: Toast["action"]) {
+export function toast(text: string, kind: Kind = "info", data?: Toast["data"], action?: Toast["action"], tag?: string) {
   const id = next++;
-  useToasts.setState((s) => ({ items: [...s.items.slice(-3), { id, text, kind, data, action }] }));
+  useToasts.setState((s) => ({ items: [...s.items.slice(-3), { id, text, kind, data, action, tag }] }));
   if (kind !== "request") window.setTimeout(() => dismiss(id), kind === "error" ? 6000 : action ? 8000 : 4500);
+}
+
+/** Drop toasts that are no longer true, e.g. a decision someone already made. */
+export function dismissTag(tag: string) {
+  useToasts.setState((s) => ({ items: s.items.filter((t) => t.tag !== tag) }));
 }
 
 function dismiss(id: number) {
