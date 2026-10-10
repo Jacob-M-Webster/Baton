@@ -67,7 +67,7 @@ Session resumed from event #N, nothing lost.*
 ## Hosting it instead of running on a laptop
 
 If the venue network is unreliable between devices, run Baton on any small Linux VM and have both
-laptops open its URL. On the VM (Python 3.10+, Node 18+):
+laptops open its URL. On the VM (Python 3.10+, Node 20.19+ or 22.12+):
 
 ```bash
 git clone <repo> && cd PalmettoHacks

@@ -19,7 +19,9 @@ if [ ! -x .venv/bin/python ]; then
 fi
 
 if [ ! -f web/dist/index.html ] || [ "${REBUILD:-0}" = "1" ]; then
-  command -v npm >/dev/null 2>&1 || { echo "Building the web app needs Node 18+ (npm)." >&2; exit 1; }
+  command -v npm >/dev/null 2>&1 || { echo "Building the web app needs Node 20.19+ (with npm)." >&2; exit 1; }
+  node -e 'const [a,b]=process.versions.node.split(".").map(Number); process.exit(a>22||(a===22&&b>=12)||(a===20&&b>=19)?0:1)' \
+    || { echo "Node $(node --version) is too old to build the web app; install Node 20.19+ or 22.12+." >&2; exit 1; }
   echo "Building the web app…"
   (cd web && npm install --silent && npm run build --silent)
 fi
