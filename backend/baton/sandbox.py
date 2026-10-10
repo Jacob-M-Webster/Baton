@@ -247,7 +247,10 @@ class Workspace:
         if self.runtime in ("docker", "podman"):
             argv = [
                 self.runtime, "run", "--rm", "--network", "none", "-v", f"{self.root.resolve()}:/workspace",
-                "-w", "/workspace", self.image, "sh", "-lc", command,
+                "-w", "/workspace", "-e", "PYTHONDONTWRITEBYTECODE=1", "-e", "HOME=/tmp",
+                # Run as the server's user so files the agent creates stay editable by Baton.
+                *(["--user", f"{os.getuid()}:{os.getgid()}"] if self.runtime == "docker" else []),
+                self.image, "sh", "-lc", command,
             ]
             proc = await asyncio.create_subprocess_exec(
                 *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, start_new_session=True

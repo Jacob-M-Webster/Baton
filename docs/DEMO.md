@@ -8,7 +8,8 @@ the second laptop. Total stage time: about 4 minutes (1 minute of slides, 3 minu
 - [ ] Both laptops on the same network. Venue Wi-Fi often blocks device-to-device traffic, so a
       phone hotspot is the safer bet.
 - [ ] On Alice's laptop, start with a clean sidebar: `BATON_DATA_DIR=data/stage ./run.sh`.
-      Note the "Teammates on your network can join at http://…" line it prints.
+      Note the "Teammates on your network can join at http://…" line it prints. On macOS,
+      click **Allow** when asked whether Python may accept incoming connections.
 - [ ] Pick the model. With internet and `ANTHROPIC_API_KEY` set, Claude is the default. The
       **Offline demo** model needs no network and always follows the rehearsed path; keep it as
       the fallback. Pacing: `BATON_DEMO_SPEED=0.8 ./run.sh` if you like to talk over it.
@@ -62,3 +63,17 @@ Session resumed from event #N, nothing lost.*
   self-hosted runners. We don't resell tokens.
 - **"Is running agent code safe?"** Each session gets its own workspace. `BATON_SANDBOX=docker`
   runs every command in a throwaway container with no network.
+
+## Hosting it instead of running on a laptop
+
+If the venue network is unreliable between devices, run Baton on any small Linux VM and have both
+laptops open its URL. On the VM (Python 3.10+, Node 18+):
+
+```bash
+git clone <repo> && cd PalmettoHacks
+cp .env.example .env          # add API keys if you want real models
+./run.sh                      # agent commands run in a per-session folder on the VM
+```
+
+A fresh clone builds and starts in about 90 seconds. The server listens on port 8000 on all
+interfaces; open that port in the VM's firewall.

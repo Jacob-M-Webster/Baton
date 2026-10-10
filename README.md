@@ -189,7 +189,9 @@ scripts/             browser-driven rehearsals of the demo
 
 With `BATON_SANDBOX=local` (the default) agent commands run as a subprocess in the session's
 workspace with a scrubbed environment, which is fine for a demo on your own machine. Set
-`BATON_SANDBOX=docker` (or `podman`) to run each command in a throwaway container with no network.
+`BATON_SANDBOX=docker` (or `podman`) to run each command in a throwaway container with no network
+(pre-pull the image, `python:3.12-slim` by default; this mode is implemented but was not exercised
+in our test environment, which has no Docker daemon).
 API keys live only on the server; no user credentials reach the agent. The open product question
 for production is whose credentials a shared agent should use: a per-session service identity,
 the driver's delegated credentials, or org-level bring-your-own-key.
