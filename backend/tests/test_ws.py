@@ -62,3 +62,23 @@ def test_two_clients_share_a_session(tmp_path):
         assert listing[0]["progress"]["done"] == listing[0]["progress"]["total"] > 0
         assert listing[0]["needs_decision"] is False
         assert client.get("/api/models").json()["providers"][-1]["id"] == "demo"
+
+
+def test_rejects_repo_path_traversal_and_bad_messages(tmp_path):
+    app = create_app(load_settings(data_dir=tmp_path, demo_speed=200.0))
+    with TestClient(app) as client:
+        client.post("/api/users", json={"id": "u_alice", "name": "Alice"})
+        for repo in ("..", "../..", "notes-api/../../backend"):
+            r = client.post("/api/sessions", json={"user_id": "u_alice", "task": "x", "repo": repo})
+            assert r.status_code == 400, repo
+        sid = client.post("/api/sessions", json={"user_id": "u_alice", "task": "Add rate limiting"}).json()["id"]
+        assert client.get(f"/api/sessions/{sid}/files/..%2F..%2Fbaton.db").status_code == 404
+        with client.websocket_connect(f"/api/sessions/{sid}/stream?user_id=u_alice") as ws:
+            ws.send_json({"type": "subscribe", "from_seq": 0})
+            drain_until(ws, lambda m: m["type"] == "replay_done")
+            ws.send_json({"type": "comment", "event_seq": "abc", "body": "x"})
+            assert drain_until(ws, lambda m: m["type"] == "error")[-1]["message"] == "Bad comment"
+            ws.send_json({"type": "seen", "seq": "nope"})
+            ws.send_json({"type": 42})
+            ws.send_json({"type": "ping"})
+            drain_until(ws, lambda m: m["type"] == "pong")  # the socket survived all of the above

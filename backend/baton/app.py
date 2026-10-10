@@ -182,7 +182,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         m = mgr(request)
         if not m.db.get_user(body.user_id):
             raise HTTPException(400, "Unknown user; sign in first")
-        if not (SAMPLE_REPOS / body.repo).is_dir():
+        if body.repo not in {r["id"] for r in list_sample_repos()}:
             raise HTTPException(400, f"Unknown repo {body.repo}")
         return m.create_session(user_id=body.user_id, task=body.task, provider=body.provider, model=body.model,
                                 repo=body.repo, title=body.title)
@@ -359,29 +359,34 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     m.broadcast_presence(sid)
                 elif kind == "ping":
                     await ws.send_json({"type": "pong"})
+                elif not isinstance(kind, str):
+                    continue
                 elif kind == "typing":
                     conn.typing_until = time.time() + 3
                     m.broadcast_presence(sid)
                 elif kind == "viewing":
                     v = msg.get("seq")
-                    conn.viewing_seq = int(v) if v is not None else None
+                    conn.viewing_seq = int(v) if isinstance(v, (int, float)) else None
                     m.broadcast_presence(sid)
                 elif kind == "focus":
                     v = msg.get("seq")
-                    new = int(v) if v is not None else None
+                    new = int(v) if isinstance(v, (int, float)) else None
                     if new != conn.focus_seq:
                         conn.focus_seq = new
                         m.broadcast_presence(sid)
                 elif kind == "seen":
-                    m.mark_seen(sid, user_id, int(msg.get("seq") or 0))
+                    if isinstance(msg.get("seq"), int):
+                        m.mark_seen(sid, user_id, msg["seq"])
                 elif kind == "comment":
                     try:
-                        m.add_comment(sid, user_id, int(msg.get("event_seq") or 0), msg.get("body") or "", msg.get("parent_id"))
+                        m.add_comment(sid, user_id, int(msg.get("event_seq") or 0), str(msg.get("body") or ""), msg.get("parent_id"))
                     except CommandError as e:
                         await ws.send_json({"type": "error", "message": str(e), "ref": msg.get("ref")})
+                    except (ValueError, TypeError):
+                        await ws.send_json({"type": "error", "message": "Bad comment"})
                 elif kind == "resolve_comment":
                     try:
-                        m.resolve_comment(sid, msg.get("id") or "", bool(msg.get("resolved", True)))
+                        m.resolve_comment(sid, str(msg.get("id") or ""), bool(msg.get("resolved", True)))
                     except CommandError as e:
                         await ws.send_json({"type": "error", "message": str(e)})
                 else:

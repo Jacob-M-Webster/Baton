@@ -167,8 +167,8 @@ class Workspace:
 
     @classmethod
     def create(cls, root: Path, repo: str, **kw) -> "Workspace":
-        src = SAMPLE_REPOS / repo
-        if not src.is_dir():
+        src = (SAMPLE_REPOS / repo).resolve()
+        if src.parent != SAMPLE_REPOS.resolve() or not src.is_dir():
             raise ToolError(f"unknown sample repo: {repo}")
         if root.exists():
             shutil.rmtree(root)
