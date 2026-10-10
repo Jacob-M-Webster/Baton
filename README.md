@@ -51,6 +51,7 @@ best.
 ```bash
 .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/python -m pytest                       # backend: runner, roles, resume, fork, adapters, WebSocket
+cd web && npm test                               # frontend: event-log derivation (vitest)
 cd web && npm run dev                            # Vite on :5173, proxies /api to :8000
 python scripts/e2e_demo.py --out shots           # plays the two-person demo in two real browsers
 python scripts/e2e_restart.py --out shots        # kills the server mid-run and checks the session resumes

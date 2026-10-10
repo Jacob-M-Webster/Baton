@@ -16,6 +16,7 @@ import { CommentThread, useCommentsFor } from "./Comments";
 
 export interface Ctx {
   me: string;
+  liveSince: number; // events newer than this arrived while watching, so they animate in
   focusBySeq: Record<number, Participant[]>;
   modelOfTurn: Record<number, string>;
   isDriver: boolean;
@@ -40,12 +41,14 @@ function Row({
   children,
   commentable = true,
   className,
+  ts,
 }: {
   seq: number;
   ctx: Ctx;
   children: ReactNode;
   commentable?: boolean;
   className?: string;
+  ts?: number;
 }) {
   const comments = useCommentsFor(seq);
   const open = ctx.openThread === seq;
@@ -56,6 +59,7 @@ function Row({
       data-seq={seq}
       className={clsx(
         "group/row relative scroll-mt-24 rounded-xl transition-colors",
+        ts !== undefined && ts > ctx.liveSince && "animate-rise",
         ctx.highlight === seq && "bg-baton-soft/60 ring-1 ring-baton/30",
         className,
       )}
@@ -107,7 +111,7 @@ export function TimelineItem({ item, ctx, events }: { item: Item; ctx: Ctx; even
       return <StartItem ev={item.ev} ctx={ctx} />;
     case "text":
       return (
-        <Row seq={item.seq} ctx={ctx}>
+        <Row seq={item.seq} ctx={ctx} ts={item.ev.ts}>
           <AgentText ev={item.ev} model={ctx.modelOfTurn[item.ev.payload.turn]} />
         </Row>
       );
@@ -115,31 +119,31 @@ export function TimelineItem({ item, ctx, events }: { item: Item; ctx: Ctx; even
       return <ThinkingItem ev={item.ev} />;
     case "tool":
       return (
-        <Row seq={item.seq} ctx={ctx}>
+        <Row seq={item.seq} ctx={ctx} ts={item.call.ts}>
           <ToolCard call={item.call} result={item.result} ctx={ctx} />
         </Row>
       );
     case "plan":
       return (
-        <Row seq={item.seq} ctx={ctx}>
+        <Row seq={item.seq} ctx={ctx} ts={item.call.ts}>
           <PlanItem steps={item.steps} prev={item.prev} />
         </Row>
       );
     case "decision":
       return (
-        <Row seq={item.point?.seq ?? item.seq} ctx={ctx}>
+        <Row seq={item.point?.seq ?? item.seq} ctx={ctx} ts={item.call.ts}>
           <DecisionCard item={item} ctx={ctx} />
         </Row>
       );
     case "finish":
       return (
-        <Row seq={item.seq} ctx={ctx}>
+        <Row seq={item.seq} ctx={ctx} ts={item.call.ts}>
           <FinishCard summary={item.summary} ts={item.call.ts} />
         </Row>
       );
     case "human":
       return (
-        <Row seq={item.seq} ctx={ctx}>
+        <Row seq={item.seq} ctx={ctx} ts={item.ev.ts}>
           <HumanItem item={item} ctx={ctx} events={events} />
         </Row>
       );

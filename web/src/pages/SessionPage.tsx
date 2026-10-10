@@ -28,6 +28,7 @@ export function SessionPage({ id }: { id: string }) {
   const [highlight, setHighlight] = useState<number | null>(null);
   const [atBottom, setAtBottom] = useState(true);
   const scroller = useRef<HTMLDivElement>(null);
+  const [liveSince] = useState(() => Date.now() / 1000 + 1);
 
   const { session, events, participants, partial, conn, replayed, viewSeq, setViewSeq, send } = useSession();
 
@@ -86,6 +87,7 @@ export function SessionPage({ id }: { id: string }) {
 
   const ctx: Ctx = {
     me,
+    liveSince,
     focusBySeq,
     modelOfTurn,
     isDriver,
