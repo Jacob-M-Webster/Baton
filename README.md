@@ -61,6 +61,9 @@ The e2e scripts need `python -m playwright install chromium` once.
 
 ## The 3-minute demo
 
+Full runbook with timings, fallbacks and Q&A prep: [docs/DEMO.md](docs/DEMO.md). The pitch deck
+lives in the app at `/pitch` and ends on a QR code that opens the live demo.
+
 Two laptops, Alice and Bob. Model: whichever is configured (Offline demo works without network).
 
 1. **Alice starts a session**: "Add rate limiting to this API and write tests." The agent publishes
