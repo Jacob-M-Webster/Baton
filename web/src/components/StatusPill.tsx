@@ -29,7 +29,7 @@ export function StatusPill({ status, decision }: { status: Status; decision?: bo
   return (
     <span
       className={clsx(
-        "inline-flex h-6 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium whitespace-nowrap",
+        "inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full border px-2 text-xs font-medium whitespace-nowrap sm:px-2.5",
         status === "running" && "border-live/25 bg-live/8 text-live",
         status === "waiting_input" && "border-attn/30 bg-attn-soft text-attn",
         status === "done" && "border-line bg-sunken text-ink-2",
@@ -38,7 +38,7 @@ export function StatusPill({ status, decision }: { status: Status; decision?: bo
       )}
     >
       <StatusDot status={status} />
-      {decision && status === "waiting_input" ? "Needs a decision" : LABEL[status]}
+      <span className="hidden sm:inline">{decision && status === "waiting_input" ? "Needs a decision" : LABEL[status]}</span>
     </span>
   );
 }

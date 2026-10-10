@@ -36,8 +36,8 @@ export function SessionHeader({
   const canTake = !isDriver && mine?.role !== "viewer" && (!driver?.online || mine?.is_owner);
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-panel px-4">
-      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-panel px-3 sm:gap-3 sm:px-4">
+      <div className="flex min-w-[96px] flex-1 items-center gap-2.5">
         <Link href="/" className="hidden text-[13px] text-ink-4 hover:text-ink-2 lg:inline">
           Sessions
         </Link>
@@ -57,7 +57,8 @@ export function SessionHeader({
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        <div className="hidden md:block">
         <ModelPicker
           compact
           provider={session.provider}
@@ -65,6 +66,7 @@ export function SessionHeader({
           disabled={!isDriver}
           onChange={(provider, model) => send({ type: "set_model", provider, model })}
         />
+        </div>
 
         <Presence participants={participants} driverId={session.driver_id} />
 
@@ -73,15 +75,17 @@ export function SessionHeader({
           <span className="hidden xl:inline">Catch up</span>
         </Button>
 
-        <ShareButton sessionId={session.id} />
+        <div className="hidden sm:block">
+          <ShareButton sessionId={session.id} />
+        </div>
 
         {isDriver ? (
           <Popover
             width={260}
             trigger={(_, toggle) => (
-              <Button onClick={toggle} className="border-baton/40">
+              <Button onClick={toggle} className="border-baton/40" aria-label="Hand off">
                 <BatonMark className="size-3.5" />
-                Hand off
+                <span className="hidden sm:inline">Hand off</span>
               </Button>
             )}
           >
@@ -108,26 +112,30 @@ export function SessionHeader({
         ) : canTake ? (
           <Button onClick={() => send({ type: "take_driver" })} title={driver?.online ? "You own this session" : `${driver?.name || "The driver"} is away`}>
             <BatonMark className="size-3.5" />
-            Take the baton
+            <span className="hidden sm:inline">Take the baton</span>
+            <span className="sm:hidden">Take</span>
           </Button>
         ) : mine?.role !== "viewer" ? (
           <Button onClick={() => send({ type: "request_driver" })}>
             <BatonMark className="size-3.5" />
-            Ask for the baton
+            <span className="hidden sm:inline">Ask for the baton</span>
+            <span className="sm:hidden">Ask</span>
           </Button>
         ) : null}
 
         {isDriver && session.status === "running" && (
           <Button variant="danger" onClick={() => send({ type: "interrupt" })} title="Stop the agent (Esc)">
             <Square className="size-3 fill-current" />
-            Interrupt
-            <Kbd>Esc</Kbd>
+            <span className="hidden sm:inline">Interrupt</span>
+            <span className="hidden lg:inline">
+              <Kbd>Esc</Kbd>
+            </span>
           </Button>
         )}
         {isDriver && (session.status === "waiting_input" || session.status === "error") && !hasDecision && (
           <Button onClick={() => send({ type: "resume" })} title="Let the agent continue">
             <Play className="size-3 fill-current" />
-            Resume
+            <span className="hidden sm:inline">Resume</span>
           </Button>
         )}
       </div>

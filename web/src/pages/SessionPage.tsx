@@ -210,7 +210,7 @@ export function SessionPage({ id }: { id: string }) {
               setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
             }}
           >
-            <div className="mx-auto w-full max-w-[760px] px-6 pt-8 pb-6 md:pr-16">
+            <div className="mx-auto w-full max-w-[760px] pt-8 pr-12 pb-6 pl-4 sm:pr-16 sm:pl-6">
               <div className="space-y-3.5">
                 {items.map((it) => (
                   <TimelineItem key={`${it.kind}-${it.seq}`} item={it} ctx={ctx} events={events} />
@@ -244,7 +244,7 @@ export function SessionPage({ id }: { id: string }) {
               </button>
             </div>
           )}
-          <div className="mx-auto w-full max-w-[760px] px-6 pb-4 md:pr-16">
+          <div className="mx-auto w-full max-w-[760px] px-3 pb-3 sm:px-6 sm:pb-4 md:pr-16">
             <Composer session={session} me={me} participants={participants} hasDecision={!!decision} send={send} />
           </div>
           <Scrubber events={events} viewSeq={viewSeq} setViewSeq={setViewSeq} participants={participants} me={me} onFork={fork} />

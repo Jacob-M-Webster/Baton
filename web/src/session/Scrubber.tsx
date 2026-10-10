@@ -32,12 +32,12 @@ export function Scrubber({
   if (head < 2) return null;
 
   return (
-    <div className="flex items-center gap-3 border-t border-line bg-panel px-4 py-2">
-      <div className="w-[150px] shrink-0">
+    <div className="flex items-center gap-3 border-t border-line bg-panel px-3 py-2 sm:px-4">
+      <div className="shrink-0 sm:w-[150px]">
         {viewSeq === null ? (
           <span className="inline-flex items-center gap-1.5 text-xs font-medium text-live">
             <Radio className="size-3.5" /> Live
-            <span className="tnum font-normal text-ink-4">· {head} events</span>
+            <span className="tnum hidden font-normal text-ink-4 sm:inline">· {head} events</span>
           </span>
         ) : (
           <span className="tnum text-xs text-ink-2">
@@ -82,18 +82,19 @@ export function Scrubber({
           aria-label="Scrub through the session"
         />
       </div>
-      <div className="flex w-[220px] shrink-0 justify-end gap-1.5">
+      <div className="flex shrink-0 justify-end gap-1.5 sm:w-[220px]">
         {viewSeq !== null ? (
           <>
-            <Button size="sm" variant="ghost" onClick={() => onFork(value)}>
-              <GitFork className="size-3" /> Fork from here
+            <Button size="sm" variant="ghost" onClick={() => onFork(value)} aria-label="Fork from here">
+              <GitFork className="size-3" /> <span className="hidden sm:inline">Fork from here</span>
             </Button>
             <Button size="sm" onClick={() => setViewSeq(null)}>
-              Back to live
+              <span className="hidden sm:inline">Back to live</span>
+              <span className="sm:hidden">Live</span>
             </Button>
           </>
         ) : (
-          <span className="text-[11.5px] text-ink-4">Drag to rewind</span>
+          <span className="hidden text-[11.5px] text-ink-4 sm:inline">Drag to rewind</span>
         )}
       </div>
     </div>

@@ -61,14 +61,14 @@ function Row({
     >
       {children}
       {commentable && (
-        <div className="absolute top-0 -right-11 flex flex-col items-center gap-1">
+        <div className="absolute top-0 -right-10 flex flex-col items-center gap-1 sm:-right-11">
           <button
             onClick={() => ctx.setOpenThread(open ? null : seq)}
             className={clsx(
               "flex h-7 min-w-7 items-center justify-center gap-1 rounded-md px-1.5 text-xs",
               comments.length
                 ? "border border-line bg-panel text-ink-2 hover:text-ink"
-                : "text-ink-4 opacity-0 group-hover/row:opacity-100 hover:bg-sunken hover:text-ink-2",
+                : "text-ink-4 opacity-0 group-hover/row:opacity-100 pointer-coarse:opacity-60 hover:bg-sunken hover:text-ink-2",
               open && "opacity-100",
             )}
             title="Comment on this step"

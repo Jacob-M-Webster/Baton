@@ -36,7 +36,11 @@ export function IdentityModal({ onClose }: { onClose?: () => void }) {
       >
         <Logo />
         <h2 className="mt-5 text-lg font-semibold tracking-tight">{user ? "Your profile" : "Who's joining?"}</h2>
-        <p className="mt-1 text-[13px] text-ink-3">Teammates see this name next to everything you do in a session.</p>
+        <p className="mt-1 text-[13px] text-ink-3">
+          {!user && location.pathname.startsWith("/s/")
+            ? "You've been invited to a live agent session. Pick a name so everyone knows who's here."
+            : "Teammates see this name next to everything you do in a session."}
+        </p>
         <div className="mt-5 flex items-center gap-3">
           <Avatar name={name || "?"} color={color} size={40} />
           <input

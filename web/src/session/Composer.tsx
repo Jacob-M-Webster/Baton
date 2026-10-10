@@ -92,11 +92,12 @@ export function Composer({
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 rounded-md bg-sunken px-2 py-1 text-[11.5px] font-medium text-ink-3">
-              <Lightbulb className="size-3" /> Suggestions go to {driver?.name || "the driver"}, not the agent
+              <Lightbulb className="size-3" /> <span className="sm:hidden">To {driver?.name || "the driver"}</span>
+              <span className="hidden sm:inline">Suggestions go to {driver?.name || "the driver"}, not the agent</span>
             </span>
           )}
           <span className="ml-auto hidden text-[11.5px] text-ink-4 sm:inline">Enter to send · Shift+Enter for a new line</span>
-          <Button variant={isDriver ? "primary" : "secondary"} onClick={submit} disabled={!text.trim()}>
+          <Button variant={isDriver ? "primary" : "secondary"} onClick={submit} disabled={!text.trim()} className="ml-auto sm:ml-0">
             {isDriver ? "Steer" : "Suggest"}
             <ArrowUp className="size-3.5" />
           </Button>
