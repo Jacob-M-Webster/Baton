@@ -1,0 +1,17 @@
+# local toolchains (Node, Playwright browsers) and envs
+.tools/
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# runtime data
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# build output
+web/dist/
+.env
