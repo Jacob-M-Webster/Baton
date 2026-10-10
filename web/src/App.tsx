@@ -7,6 +7,7 @@ import { Home } from "./pages/Home";
 import { SessionPage } from "./pages/SessionPage";
 import { Sidebar } from "./components/Sidebar";
 import { Pitch } from "./pages/Pitch";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export function App() {
   const { user, ready, sync } = useIdentity();
@@ -21,7 +22,13 @@ export function App() {
       <main className="flex min-w-0 flex-1 flex-col">
         {ready && user && (
           <Switch>
-            <Route path="/s/:id">{(p) => <SessionPage key={p.id} id={p.id} />}</Route>
+            <Route path="/s/:id">
+              {(p) => (
+                <ErrorBoundary key={p.id}>
+                  <SessionPage id={p.id} />
+                </ErrorBoundary>
+              )}
+            </Route>
             <Route>
               <Home />
             </Route>

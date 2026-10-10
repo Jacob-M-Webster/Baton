@@ -193,6 +193,8 @@ function ShareButton({ sessionId }: { sessionId: string }) {
   const [url, setUrl] = useState(`${location.origin}/s/${sessionId}`);
   const [qr, setQr] = useState("");
   const [copied, setCopied] = useState(false);
+  const [viewOnly, setViewOnly] = useState(false);
+  const link = viewOnly ? `${url}?role=viewer` : url;
   useEffect(() => {
     // Prefer the LAN address so a teammate's laptop or phone can open it.
     api
@@ -208,13 +210,13 @@ function ShareButton({ sessionId }: { sessionId: string }) {
   }, [sessionId]);
   useEffect(() => {
     const dark = document.documentElement.classList.contains("dark");
-    QRCode.toDataURL(url, { margin: 1, width: 360, color: { dark: dark ? "#ececef" : "#17171a", light: "#00000000" } })
+    QRCode.toDataURL(link, { margin: 1, width: 360, color: { dark: dark ? "#ececef" : "#17171a", light: "#00000000" } })
       .then(setQr)
       .catch(() => {});
-  }, [url]);
+  }, [link]);
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(link);
     } catch {
       /* clipboard blocked on http; the URL is visible to copy by hand */
     }
@@ -234,10 +236,27 @@ function ShareButton({ sessionId }: { sessionId: string }) {
       {() => (
         <div className="p-2">
           <p className="text-[13px] font-semibold">Invite to this session</p>
-          <p className="mt-0.5 text-xs text-ink-3">Anyone with the link joins as a collaborator and sees a catch-up of everything so far.</p>
+          <p className="mt-0.5 text-xs text-ink-3">
+            Anyone with the link joins {viewOnly ? "as a viewer who can watch and comment" : "as a collaborator who can suggest and comment"},
+            and starts with a catch-up of everything so far.
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-sunken p-0.5 text-xs font-medium">
+            {[
+              [false, "Can suggest"],
+              [true, "View only"],
+            ].map(([v, label]) => (
+              <button
+                key={String(v)}
+                onClick={() => setViewOnly(v as boolean)}
+                className={clsx("h-7 rounded-md", viewOnly === v ? "bg-panel text-ink shadow-[0_1px_2px_rgb(0_0_0/0.08)]" : "text-ink-3 hover:text-ink-2")}
+              >
+                {label as string}
+              </button>
+            ))}
+          </div>
           {qr && <img src={qr} alt="QR code for the session link" className="mx-auto my-3 size-40" />}
           <div className="flex items-center gap-1.5 rounded-lg border border-line bg-sunken p-1 pl-2.5">
-            <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-ink-2">{url}</span>
+            <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-ink-2">{link}</span>
             <Button size="sm" onClick={copy}>
               {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
               {copied ? "Copied" : "Copy"}

@@ -46,6 +46,11 @@ export function Markdown({ text, caret }: { text: string; caret?: boolean }) {
   return <div className="prose-agent">{blocks}</div>;
 }
 
+/** Inline-only rendering (code spans and bold) for short summaries. */
+export function InlineMd({ text }: { text: string }) {
+  return <span className="prose-agent">{inline(text)}</span>;
+}
+
 function inline(s: string): ReactNode {
   const parts = s.split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
   return parts.map((p, i) => {

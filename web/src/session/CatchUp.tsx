@@ -6,6 +6,7 @@ import { api } from "../lib/api";
 import { modelLabel } from "../lib/format";
 import { useSession } from "../lib/session";
 import { Avatar } from "../components/Avatar";
+import { InlineMd } from "../components/Markdown";
 import { Button } from "../components/Button";
 import { BatonMark } from "../components/Logo";
 
@@ -51,7 +52,9 @@ export function CatchUpBody({
   return (
     <div className={clsx("space-y-4", compact && "space-y-3.5")}>
       <Section label="Doing now">
-        <p className={clsx("leading-snug text-ink", compact ? "text-[13.5px]" : "text-[15px] font-medium")}>{card.doing}</p>
+        <p className={clsx("leading-snug text-ink", compact ? "text-[13.5px]" : "text-[15px] font-medium")}>
+          <InlineMd text={card.doing} />
+        </p>
       </Section>
       {card.questions.length > 0 && (
         <button
@@ -72,7 +75,9 @@ export function CatchUpBody({
               {card.done.map((d, i) => (
                 <li key={i} className="flex gap-2 text-[13px] leading-snug text-ink-2">
                   <span className="mt-[7px] size-1 shrink-0 rounded-full bg-ink-4" />
-                  {d}
+                  <span>
+                    <InlineMd text={d} />
+                  </span>
                 </li>
               ))}
             </ul>
@@ -84,7 +89,9 @@ export function CatchUpBody({
               {card.next.map((d, i) => (
                 <li key={i} className="flex gap-2 text-[13px] leading-snug text-ink-2">
                   <span className="mt-[7px] size-1 shrink-0 rounded-full border border-ink-4" />
-                  {d}
+                  <span>
+                    <InlineMd text={d} />
+                  </span>
                 </li>
               ))}
             </ul>
