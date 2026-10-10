@@ -23,6 +23,7 @@ export function SessionPage({ id }: { id: string }) {
   const [initialCard, setInitialCard] = useState<CatchUp | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [showCatchUp, setShowCatchUp] = useState<false | "join" | "handoff">(false);
+  const [handoffFrom, setHandoffFrom] = useState("");
   const [openThread, setOpenThread] = useState<number | null>(null);
   const [highlight, setHighlight] = useState<number | null>(null);
   const [atBottom, setAtBottom] = useState(true);
@@ -107,7 +108,10 @@ export function SessionPage({ id }: { id: string }) {
       (lastEv.type === "agent.decision_point" && session?.driver_id === me) ||
       (lastEv.type === "control.driver_changed" && lastEv.payload.to === me);
     // Handing off the baton comes with a catch-up for the new driver.
-    if (lastEv.type === "control.driver_changed" && lastEv.payload.to === me && lastEv.actor !== me) setShowCatchUp("handoff");
+    if (lastEv.type === "control.driver_changed" && lastEv.payload.to === me && lastEv.actor !== me) {
+      setHandoffFrom(participants.find((p) => p.user_id === lastEv.actor)?.name || "A teammate");
+      setShowCatchUp("handoff");
+    }
     if (lastEv.actor === me || needsMe) {
       setAtBottom(true);
       requestAnimationFrame(() => {
@@ -256,7 +260,7 @@ export function SessionPage({ id }: { id: string }) {
           card={card}
           people={participants}
           driverName={driverName}
-          handoff={showCatchUp === "handoff" ? people[lastEv?.actor ?? ""]?.name || "A teammate" : undefined}
+          handoff={showCatchUp === "handoff" ? handoffFrom : undefined}
           onClose={() => setShowCatchUp(false)}
           onJump={jump}
         />

@@ -163,3 +163,15 @@ async def test_fork_restores_files(mgr):
     assert ws.read_text("tests/test_rate_limit.py") is None
     assert f["status"] == "waiting_input"
     assert write["seq"] < fork_at
+
+
+async def test_take_the_baton_from_an_absent_driver(mgr):
+    sid = await run_to_decision(mgr)
+    mgr.join(sid, "u_bob")
+    # Alice never connected a socket in this test, so she counts as away.
+    await mgr.command(sid, "u_bob", {"type": "take_driver"})
+    ev = [e for e in mgr.db.events(sid) if e["type"] == "control.driver_changed"][-1]
+    assert ev["actor"] == "u_bob" and ev["payload"]["reason"] == "force"
+    assert mgr.db.get_session(sid)["driver_id"] == "u_bob"
+    card = mgr.catchup(sid)
+    assert any(c["who"] == "Bob" and c["what"] == "took the baton" for c in card["changed"])

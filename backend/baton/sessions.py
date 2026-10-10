@@ -264,7 +264,7 @@ class SessionManager:
             away = self.hub.offline_for(session_id, drv) if drv else 1e9
             if not (away > 20 or (is_owner and idle > self.settings.driver_idle_seconds)):
                 raise CommandError("The driver is active. Ask them to hand off.")
-            self._change_driver(session_id, drv, user_id, reason="force")
+            self._change_driver(session_id, drv, user_id, reason="force", actor=user_id)
         elif kind == "set_model":
             require_driver()
             provider, model = msg.get("provider"), (msg.get("model") or "").strip()
@@ -343,12 +343,14 @@ class SessionManager:
         self.set_status(session_id, "running", reason="decision made")
         self.start_runner(session_id).wake.set()
 
-    def _change_driver(self, session_id: str, frm: str | None, to: str, reason: str, note: str | None = None) -> None:
+    def _change_driver(self, session_id: str, frm: str | None, to: str, reason: str, note: str | None = None,
+                       actor: str | None = None) -> None:
         self.db.update_session(session_id, driver_id=to)
         if frm:
             self.db.update_participant(session_id, frm, role="collaborator")
         self.db.update_participant(session_id, to, role="driver", last_active=time.time())
-        self.append(session_id, frm or "system", "control.driver_changed", {"from": frm, "to": to, "reason": reason, "note": note})
+        self.append(session_id, actor or frm or "system", "control.driver_changed",
+                    {"from": frm, "to": to, "reason": reason, "note": note})
         self.broadcast_session(session_id)
         self.broadcast_presence(session_id)
 

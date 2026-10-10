@@ -236,6 +236,8 @@ def interventions(events: list[dict], names: dict[str, str]) -> list[dict]:
             out.append({"seq": ev["seq"], "who": who, "what": "interrupted the agent"})
         elif t == "human.decision":
             out.append({"seq": ev["seq"], "who": who, "what": f"decided: {clip(p.get('answer', ''), 90)}"})
+        elif t == "control.driver_changed" and p.get("reason") == "force":
+            out.append({"seq": ev["seq"], "who": actor_name(names, p["to"]), "what": "took the baton"})
         elif t == "control.driver_changed" and p.get("from"):
             out.append({"seq": ev["seq"], "who": actor_name(names, p["from"]), "what": f"handed off to {actor_name(names, p['to'])}"})
         elif t == "control.model_changed":
