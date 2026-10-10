@@ -254,7 +254,8 @@ def interventions(events: list[dict], names: dict[str, str]) -> list[dict]:
 def heuristic_card(session: dict, events: list[dict], names: dict[str, str]) -> dict:
     plan = latest_plan(events)
     questions = open_decisions(events)
-    done: list[str] = [s["title"] for s in plan if s.get("status") == "done"]
+    plan_done: list[str] = [s["title"] for s in plan if s.get("status") == "done"]
+    done: list[str] = []  # concrete facts from the log first, then completed plan steps
     nxt: list[str] = [s["title"] for s in plan if s.get("status") != "done"]
     calls = {ev["payload"]["call_id"]: ev["payload"] for ev in events if ev["type"] == "tool.call"}
     touched: list[str] = []
@@ -276,17 +277,18 @@ def heuristic_card(session: dict, events: list[dict], names: dict[str, str]) -> 
         path = (c.get("input") or {}).get("path")
         if c.get("name") == "read_file" and path and path not in read and path not in touched:
             read.append(path)
+    if touched:
+        done.append("Changed " + ", ".join(f"`{p}`" for p in touched[:4]))
     if read:
         names_ = [r.rsplit("/", 1)[-1] for r in read]
         more = f" and {len(names_) - 3} more" if len(names_) > 3 else ""
         done.append(f"Read {len(read)} file{'s' if len(read) != 1 else ''}: " + ", ".join(names_[:3]) + more)
-    if touched:
-        done.append("Changed " + ", ".join(f"`{p}`" for p in touched[:4]))
     if last_test is not None:
         ok = last_test.get("exit_code", 1) == 0
         m = re.search(r"Ran (\d+) tests?", last_test.get("output", ""))
         n = f"{m.group(1)} tests" if m else "the test suite"
-        done.append(f"Ran {n}: {'passing' if ok else 'failing'}")
+        done.insert(0, f"Ran {n}: {'passing' if ok else 'failing'}")
+    done += plan_done
 
     status = session["status"]
     last_text = next((ev["payload"]["text"] for ev in reversed(events) if ev["type"] == "agent.text" and ev["payload"].get("text")), "")
