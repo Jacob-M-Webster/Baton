@@ -278,3 +278,21 @@ async def test_signed_thinking_round_trips_to_the_same_model_only(mgr):
     wire = AnthropicProvider.to_wire(msgs, "claude-sonnet-5-5")
     assert not any(b["type"] == "thinking" for m in wire for b in m["content"])
     assert all(m.get("content") or m.get("tool_calls") for m in OpenAIProvider.to_wire("s", msgs) if m["role"] == "assistant")
+
+
+async def test_steer_during_a_tool_reaches_the_next_model_call(mgr):
+    """Redirect: a steer sent mid-step is injected at the next turn boundary, after the tool result."""
+    srv = FakeServer("openai", [
+        ("Running a slow check.", ("call_s1", "run_command", {"command": "sleep 0.6; echo done"})),
+        ("Adjusting as asked.", ("call_s2", "finish", {"summary": "ok"})),
+    ])
+    mgr.providers["local"] = OpenAIProvider("local", "local", "http://fake/v1", http_client=srv.client())
+    sid = mgr.create_session(user_id="u_alice", task="t", provider="local", model="m")["id"]
+    await wait_for(lambda: any(e["type"] == "tool.call" for e in mgr.db.events(sid)))
+    await mgr.command(sid, "u_alice", {"type": "steer", "text": "Use the token bucket instead."})
+    await wait_for(lambda: mgr.db.get_session(sid)["status"] == "done", timeout=10)
+    second = srv.requests[1]["messages"]
+    roles = [m["role"] for m in second]
+    assert roles[-2:] == ["tool", "user"], roles
+    assert second[-2]["content"].startswith("done")
+    assert second[-1]["content"] == "[Alice, steering]: Use the token bucket instead."
