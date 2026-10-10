@@ -389,8 +389,7 @@ class SessionManager:
                 seq = e["seq"] - 1
                 events = [x for x in events if x["seq"] <= seq]
                 break
-        title = f"{s['title']} (fork @{seq})"
-        new = self.db.create_session(title=title, task=s["task"], created_by=user_id, provider=s["provider"],
+        new = self.db.create_session(title=s["title"], task=s["task"], created_by=user_id, provider=s["provider"],
                                      model=s["model"], config=s["config"], status="waiting_input",
                                      parent_session_id=session_id, fork_seq=seq, driver_id=user_id)
         self.db.copy_events(session_id, new["id"], seq)

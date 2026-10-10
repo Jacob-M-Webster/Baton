@@ -56,7 +56,11 @@ export function Sidebar() {
                 </span>
               </span>
               <span className="flex items-center gap-2 pl-4 text-[11.5px] text-ink-4">
-                {s.parent_session_id && <GitFork className="size-3" />}
+                {s.parent_session_id && (
+                  <span className="inline-flex items-center gap-0.5">
+                    <GitFork className="size-3" />@{s.fork_seq}
+                  </span>
+                )}
                 <span className="tnum">{ago(s.updated_at)}</span>
                 {online.length > 0 && (
                   <span className="ml-auto flex -space-x-1">

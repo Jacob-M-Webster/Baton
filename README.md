@@ -54,6 +54,7 @@ best.
 cd web && npm run dev                            # Vite on :5173, proxies /api to :8000
 python scripts/e2e_demo.py --out shots           # plays the two-person demo in two real browsers
 python scripts/e2e_restart.py --out shots        # kills the server mid-run and checks the session resumes
+python scripts/e2e_controls.py --out shots       # interrupt, steer, switch model mid-session, fork
 ```
 
 The e2e scripts need `python -m playwright install chromium` once.
