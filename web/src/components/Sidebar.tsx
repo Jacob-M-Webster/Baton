@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { GitFork, Moon, Plus, Sun } from "lucide-react";
+import { GitFork, Moon, Plus, Presentation, Sun } from "lucide-react";
 import clsx from "clsx";
 import { useSessionList } from "../lib/sessions";
 import { useIdentity } from "../lib/identity";
@@ -77,6 +77,9 @@ export function Sidebar() {
             <span className="truncate text-[13px] font-medium">{user.name}</span>
           </button>
         )}
+        <Link href="/pitch" className="grid size-7 place-items-center rounded-md text-ink-3 hover:bg-sunken hover:text-ink" aria-label="Pitch deck" title="Pitch deck">
+          <Presentation className="size-4" />
+        </Link>
         <button onClick={toggle} className="grid size-7 place-items-center rounded-md text-ink-3 hover:bg-sunken hover:text-ink" aria-label="Toggle theme">
           {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
         </button>
