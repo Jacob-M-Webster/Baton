@@ -16,6 +16,7 @@ import { CommentThread, useCommentsFor } from "./Comments";
 
 export interface Ctx {
   me: string;
+  modelOfTurn: Record<number, string>;
   isDriver: boolean;
   driverId: string | null;
   people: Record<string, Participant>;
@@ -97,7 +98,7 @@ export function TimelineItem({ item, ctx, events }: { item: Item; ctx: Ctx; even
     case "text":
       return (
         <Row seq={item.seq} ctx={ctx}>
-          <AgentText ev={item.ev} />
+          <AgentText ev={item.ev} model={ctx.modelOfTurn[item.ev.payload.turn]} />
         </Row>
       );
     case "thinking":
@@ -169,11 +170,13 @@ function StartItem({ ev, ctx }: { ev: BatonEvent; ctx: Ctx }) {
   );
 }
 
-export function AgentText({ ev, streaming }: { ev?: BatonEvent; streaming?: string }) {
+export function AgentText({ ev, streaming, model }: { ev?: BatonEvent; streaming?: string; model?: string }) {
   const text = streaming ?? ev?.payload.text ?? "";
   return (
     <div className="flex gap-3 py-1">
-      <AgentAvatar size={22} />
+      <span title={[model && modelLabel(model), ev && clock(ev.ts)].filter(Boolean).join(" · ")}>
+        <AgentAvatar size={22} />
+      </span>
       <div className="min-w-0 flex-1 pt-px text-[14px] leading-[1.65] text-ink">
         <Markdown text={text} caret={streaming !== undefined} />
         {ev?.payload.interrupted && (

@@ -26,6 +26,7 @@ def main() -> int:
     ap.add_argument("--out", default="shots")
     ap.add_argument("--dark", action="store_true")
     ap.add_argument("--headed", action="store_true")
+    ap.add_argument("--size", default="1440x900", help="viewport, e.g. 1280x800")
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -38,8 +39,9 @@ def main() -> int:
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=not args.headed)
         scheme = "dark" if args.dark else "light"
-        alice_ctx = browser.new_context(viewport={"width": 1440, "height": 900}, color_scheme=scheme)
-        bob_ctx = browser.new_context(viewport={"width": 1440, "height": 900}, color_scheme=scheme)
+        w, h = (int(x) for x in args.size.split("x"))
+        alice_ctx = browser.new_context(viewport={"width": w, "height": h}, color_scheme=scheme)
+        bob_ctx = browser.new_context(viewport={"width": w, "height": h}, color_scheme=scheme)
         alice, bob = alice_ctx.new_page(), bob_ctx.new_page()
         for pg in (alice, bob):
             pg.on("pageerror", lambda e: print("PAGE ERROR:", e, file=sys.stderr))

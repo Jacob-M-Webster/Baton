@@ -61,8 +61,15 @@ export function SessionPage({ id }: { id: string }) {
   const isDriver = session?.driver_id === me;
   const live = viewSeq === null;
 
+  const modelOfTurn = useMemo(() => {
+    const m: Record<number, string> = {};
+    for (const e of events) if (e.type === "agent.turn") m[e.payload.turn] = e.payload.model;
+    return m;
+  }, [events]);
+
   const ctx: Ctx = {
     me,
+    modelOfTurn,
     isDriver,
     driverId: session?.driver_id ?? null,
     people,
@@ -117,6 +124,16 @@ export function SessionPage({ id }: { id: string }) {
     const el = document.getElementById(`ev-${viewSeq}`) || nearest(viewSeq);
     el?.scrollIntoView({ block: "end" });
   }, [viewSeq]);
+
+  // The tab title flags work that's waiting on you.
+  useEffect(() => {
+    if (!session) return;
+    const waitingOnMe = !!decision && session.driver_id === me;
+    document.title = `${waitingOnMe ? "● Decision needed · " : ""}${session.title} · Baton`;
+    return () => {
+      document.title = "Baton";
+    };
+  }, [session, decision, me]);
 
   // Esc interrupts (driver only), unless you're mid-sentence somewhere.
   useEffect(() => {
@@ -199,7 +216,7 @@ export function SessionPage({ id }: { id: string }) {
                   <TimelineItem key={`${it.kind}-${it.seq}`} item={it} ctx={ctx} events={events} />
                 ))}
                 {streaming && partial.thinking && !partial.text && <ThinkingItem streaming={partial.thinking} />}
-                {streaming && partial.text && <AgentText streaming={partial.text} />}
+                {streaming && partial.text && <AgentText streaming={partial.text} model={session.model} />}
                 {working && (
                   <div className="flex items-center gap-3 py-1">
                     <AgentAvatar size={22} />

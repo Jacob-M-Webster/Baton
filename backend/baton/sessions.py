@@ -424,7 +424,7 @@ class SessionManager:
                 card.update({k: cached[k] for k in ("doing", "done", "next") if cached.get(k)})
                 card["source"] = cached["source"]
                 card["summary_seq"] = cached["head_seq"]
-            if stale > 3:
+            if stale > 6:
                 self._refresh_catchup(session_id)
         else:
             self._refresh_catchup(session_id)
@@ -449,6 +449,8 @@ class SessionManager:
         provider = self.providers.get(s["provider"])
         if not pconf or not provider or pconf.kind == "scripted":
             return
+        if pconf.discover_models and not pconf.summary_model:
+            return  # local models: don't compete with the agent for the GPU; the log card is enough
         events = self.db.events(session_id)
         names = self.names(session_id)
         card = ctx.heuristic_card(s, events, names)
@@ -509,6 +511,7 @@ class Runner:
         self.partial_text = ""
         self.partial_thinking = ""
         self.autonomous_turns = 0
+        self.checkpointing = False
 
     def start(self) -> None:
         self.task = asyncio.create_task(self._loop(), name=f"runner-{self.sid}")
@@ -739,10 +742,19 @@ class Runner:
         cp = self.mgr.db.last_event_of(self.sid, "agent.checkpoint")
         after = cp["payload"]["covers_seq"] if cp else 0
         events = self.mgr.db.events(self.sid)
-        if pconf and len(ctx.turn_starts(events, after)) >= self.mgr.settings.checkpoint_every_turns:
+        if pconf and not self.checkpointing and len(ctx.turn_starts(events, after)) >= self.mgr.settings.checkpoint_every_turns:
             self.mgr.spawn(self._checkpoint(s, events, self.mgr.names(self.sid)))
 
     async def _checkpoint(self, s: dict, events: list[dict], names: dict, force: bool = False) -> dict | None:
+        if self.checkpointing:
+            return None
+        self.checkpointing = True
+        try:
+            return await self._write_checkpoint(s, events, names, force)
+        finally:
+            self.checkpointing = False
+
+    async def _write_checkpoint(self, s: dict, events: list[dict], names: dict, force: bool) -> dict | None:
         mgr = self.mgr
         prev = mgr.db.last_event_of(self.sid, "agent.checkpoint")
         after = prev["payload"]["covers_seq"] if prev else 0
