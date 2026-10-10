@@ -202,3 +202,24 @@ async def test_insights_summarize_interventions(mgr):
     assert data["interventions"] == 3 and sum(data["position"]) == 3
     assert data["people"] == 2 and data["models"][0]["model"] == "baton-demo"
     assert data["median_first_intervention_s"] is not None
+
+
+async def test_late_feedback_triggers_a_rework(mgr):
+    """Presenters out of order: the decision is answered first, Bob's note arrives after the legacy build."""
+    sid = await run_to_decision(mgr)
+    mgr.join(sid, "u_bob")
+    dp = ctx.open_decisions(mgr.db.events(sid))[0]
+    await mgr.command(sid, "u_alice", {"type": "answer_decision", "seq": dp["seq"], "answer": "Per API key"})
+    await wait_for(lambda: status(mgr, sid) == "done", timeout=30)
+    assert "import LegacyThrottle" in mgr.workspace(sid).read_text("app/middleware/rate_limit.py")
+
+    call = find_call(mgr, sid, "read_file", "app/middleware/legacy_throttle.py")
+    c = mgr.add_comment(sid, "u_bob", call["seq"], "This middleware is deprecated, please don't build on it.")
+    await mgr.command(sid, "u_alice", {"type": "promote", "comment_id": c["id"]})
+    await wait_for(lambda: status(mgr, sid) == "done" and find_call(mgr, sid, "finish") and
+                   len([e for e in mgr.db.events(sid) if e["type"] == "tool.call" and e["payload"]["name"] == "finish"]) == 2,
+                   timeout=30)
+    mw = mgr.workspace(sid).read_text("app/middleware/rate_limit.py")
+    assert "import LegacyThrottle" not in mw and "class RateLimiter:" in mw
+    runs = [e for e in mgr.db.events(sid) if e["type"] == "tool.result" and "exit_code" in e["payload"]]
+    assert runs[-1]["payload"]["exit_code"] == 0, runs[-1]["payload"]["output"]

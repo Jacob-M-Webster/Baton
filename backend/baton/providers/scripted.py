@@ -152,6 +152,25 @@ class ScriptedProvider:
             return text, "", ("update_plan", {"steps": _plan(2, legacy=legacy)})
         if beat == "write_mw":
             return "", "", ("write_file", {"path": "app/middleware/rate_limit.py", "content": _middleware(legacy)})
+        if beat == "rework":
+            who = st.deprecated_feedback
+            return (
+                f"Thanks {who}, I'd already built on `LegacyThrottle`. Reworking: the limiter becomes a standalone "
+                "token bucket with its own state, so it no longer shares the legacy global lock.",
+                "",
+                [("update_plan", {"steps": _plan(2, legacy=False)}),
+                 ("write_file", {"path": "app/middleware/rate_limit.py", "content": _middleware(False)})],
+            )
+        if beat == "rerun":
+            return "Re-running the full suite after the rework.", "", ("run_command", {"command": TEST_CMD})
+        if beat == "refinish":
+            return (
+                "Still green.",
+                "",
+                [("update_plan", {"steps": _plan(5, legacy=False)}),
+                 ("finish", {"summary": "Reworked the rate limiter as a standalone token bucket (no `LegacyThrottle`, per ADR 0007). "
+                                        "Full suite green (11 tests)."})],
+            )
         if beat == "wire":
             return (
                 "Wiring it in as the outermost middleware, so rejected requests never reach the app.",
@@ -218,8 +237,11 @@ class _State:
         self.answer = ""
         self.trailing: list[tuple[str, str]] = []
         ask_ids: set[str] = set()
+        self.wrote_legacy = False
         for i, m in enumerate(messages):
             for b in m["content"]:
+                if b["type"] == "tool_call" and b["name"] == "write_file" and "import LegacyThrottle" in str(b["input"].get("content", "")):
+                    self.wrote_legacy = True
                 if b["type"] == "tool_call":
                     mm = re.match(r"call_demo_([a-z_]+?)_[0-9a-f]{8}$", b["id"])
                     if mm:
@@ -235,9 +257,18 @@ class _State:
             self.trailing = [_author(b["text"]) for b in last["content"] if b["type"] == "text"]
 
     def next_beat(self) -> str:
+        # Feedback that lands after the agent already built on the legacy throttle triggers a rework,
+        # wherever the run is; if the run had finished, it re-verifies and finishes again.
+        rework = "write_mw" in self.done and self.wrote_legacy and bool(self.deprecated_feedback)
+        if rework and "rework" not in self.done:
+            return "rework"
         for b in BEATS:
             if b not in self.done:
                 return b
+        if rework:
+            for b in ("rerun", "refinish"):
+                if b not in self.done:
+                    return b
         return "after"
 
     @property
