@@ -57,7 +57,7 @@ export function SessionPage({ id }: { id: string }) {
     };
   }, [id, me]);
 
-  const liveCard = useCatchUp(id, me, session?.head_seq ?? 0);
+  const liveCard = useCatchUp(id, me, events.length ? events[events.length - 1].seq : 0);
   const card = liveCard || initialCard;
 
   const people = useMemo(() => Object.fromEntries(participants.map((p) => [p.user_id, p])) as Record<string, Participant>, [participants]);

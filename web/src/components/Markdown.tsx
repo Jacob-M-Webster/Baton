@@ -1,7 +1,12 @@
 import { Fragment, type ReactNode } from "react";
 
 /** Just enough markdown for agent prose: paragraphs, bullet lists, code fences, `code`, **bold**. */
-export function Markdown({ text, caret }: { text: string; caret?: boolean }) {
+function Caret() {
+  return <span className="animate-caret ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[3px] bg-ink" />;
+}
+
+export function Markdown({ text, caret: withCaret }: { text: string; caret?: boolean }) {
+  let caret = !!withCaret;
   const blocks: ReactNode[] = [];
   const lines = text.replace(/\r/g, "").split("\n");
   let i = 0;
@@ -38,11 +43,17 @@ export function Markdown({ text, caret }: { text: string; caret?: boolean }) {
     }
     const para: string[] = [];
     while (i < lines.length && lines[i].trim() && !lines[i].startsWith("```") && !/^\s*[-*] /.test(lines[i])) para.push(lines[i++]);
-    blocks.push(<p key={key++}>{inline(para.join(" "))}</p>);
+    // While streaming, the caret trails the last paragraph instead of dropping to its own line.
+    const last = caret && lines.slice(i).every((l) => !l.trim());
+    blocks.push(
+      <p key={key++}>
+        {inline(para.join(" "))}
+        {last && <Caret />}
+      </p>,
+    );
+    if (last) caret = false;
   }
-  if (caret) {
-    blocks.push(<span key="caret" className="animate-caret ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[3px] bg-ink" />);
-  }
+  if (caret) blocks.push(<Caret key="caret" />);
   return <div className="prose-agent">{blocks}</div>;
 }
 
