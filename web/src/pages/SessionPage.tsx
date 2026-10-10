@@ -110,12 +110,13 @@ export function SessionPage({ id }: { id: string }) {
   const jump = useCallback(
     (seq: number) => {
       if (viewSeq !== null && seq > viewSeq) setViewSeq(null);
+      // Highlight first: it also unfolds a collapsed group that contains the step.
+      setHighlight(seq);
       window.setTimeout(() => {
         const el = document.getElementById(`ev-${seq}`) || nearest(seq);
         el?.scrollIntoView({ behavior: "smooth", block: "center" });
-        setHighlight(seq);
-        window.setTimeout(() => setHighlight(null), 1800);
-      }, 30);
+      }, 60);
+      window.setTimeout(() => setHighlight((h) => (h === seq ? null : h)), 2000);
     },
     [viewSeq, setViewSeq],
   );
@@ -163,18 +164,30 @@ export function SessionPage({ id }: { id: string }) {
   };
 
   // Follow my own actions, and the moments that need me, even if I had scrolled up.
+  // Look at every event that arrived since the last render, not just the newest one.
   const lastEv = events[events.length - 1];
+  const handled = useRef(0);
   useEffect(() => {
-    if (!lastEv || !replayed || !live) return;
-    const needsMe =
-      (lastEv.type === "agent.decision_point" && session?.driver_id === me) ||
-      (lastEv.type === "control.driver_changed" && lastEv.payload.to === me);
-    // Handing off the baton comes with a catch-up for the new driver.
-    if (lastEv.type === "control.driver_changed" && lastEv.payload.to === me && lastEv.actor !== me) {
-      setHandoffFrom(participants.find((p) => p.user_id === lastEv.actor)?.name || "A teammate");
-      setShowCatchUp("handoff");
+    if (!lastEv) return;
+    if (!replayed) {
+      handled.current = lastEv.seq;
+      return;
     }
-    if (lastEv.actor === me || needsMe) {
+    const fresh = events.filter((e) => e.seq > handled.current);
+    handled.current = lastEv.seq;
+    if (!live || !fresh.length) return;
+    let follow = false;
+    for (const e of fresh) {
+      if (e.type === "control.driver_changed" && e.payload.to === me && e.actor !== me) {
+        // Handing off the baton comes with a catch-up for the new driver.
+        setHandoffFrom(participants.find((p) => p.user_id === e.actor)?.name || "A teammate");
+        setShowCatchUp("handoff");
+      }
+      if (e.actor === me || (e.type === "agent.decision_point" && session?.driver_id === me) || (e.type === "control.driver_changed" && e.payload.to === me)) {
+        follow = true;
+      }
+    }
+    if (follow) {
       setAtBottom(true);
       requestAnimationFrame(() => {
         const el = scroller.current;
@@ -182,7 +195,7 @@ export function SessionPage({ id }: { id: string }) {
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastEv?.seq]);
+  }, [lastEv?.seq, replayed]);
 
   // While scrubbing, keep the step being inspected in view.
   useEffect(() => {
