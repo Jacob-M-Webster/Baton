@@ -5,6 +5,7 @@ export type Item =
   | { kind: "text"; seq: number; ev: BatonEvent }
   | { kind: "thinking"; seq: number; ev: BatonEvent }
   | { kind: "tool"; seq: number; call: BatonEvent; result?: BatonEvent }
+  | { kind: "group"; seq: number; tools: ToolItem[] }
   | { kind: "plan"; seq: number; call: BatonEvent; steps: PlanStep[]; prev: PlanStep[] }
   | { kind: "decision"; seq: number; call: BatonEvent; point?: BatonEvent; answer?: BatonEvent }
   | { kind: "finish"; seq: number; call: BatonEvent; summary: string }
@@ -12,6 +13,32 @@ export type Item =
   | { kind: "request"; seq: number; ev: BatonEvent; resolved?: BatonEvent }
   | { kind: "system"; seq: number; ev: BatonEvent }
   | { kind: "error"; seq: number; ev: BatonEvent };
+
+export type ToolItem = { kind: "tool"; seq: number; call: BatonEvent; result?: BatonEvent };
+
+const READ_ONLY = new Set(["read_file", "list_files"]);
+
+/** Fold runs of finished, read-only steps (reading files, listing folders) into one row. */
+export function groupReads(items: Item[], keepOpen: Set<number> = new Set()): Item[] {
+  const out: Item[] = [];
+  let run: ToolItem[] = [];
+  const flush = () => {
+    if (run.length >= 2) out.push({ kind: "group", seq: run[0].seq, tools: run });
+    else out.push(...run);
+    run = [];
+  };
+  for (const it of items) {
+    const foldable =
+      it.kind === "tool" && READ_ONLY.has(it.call.payload.name) && !!it.result && !it.result.payload.is_error && !keepOpen.has(it.seq);
+    if (foldable) run.push(it as ToolItem);
+    else {
+      flush();
+      out.push(it);
+    }
+  }
+  flush();
+  return out;
+}
 
 export interface PlanStep {
   title: string;

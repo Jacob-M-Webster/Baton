@@ -4,7 +4,7 @@ import { ArrowDown, History, Loader2 } from "lucide-react";
 import { api } from "../lib/api";
 import { useIdentity } from "../lib/identity";
 import { connectSession, useSession } from "../lib/session";
-import { buildItems, openDecision } from "../lib/derive";
+import { buildItems, groupReads, openDecision } from "../lib/derive";
 import type { CatchUp, Participant } from "../lib/types";
 import { refreshSessions } from "../lib/sessions";
 import { AgentAvatar } from "../components/Avatar";
@@ -58,7 +58,14 @@ export function SessionPage({ id }: { id: string }) {
 
   const people = useMemo(() => Object.fromEntries(participants.map((p) => [p.user_id, p])) as Record<string, Participant>, [participants]);
   const visible = useMemo(() => (viewSeq === null ? events : events.filter((e) => e.seq <= viewSeq)), [events, viewSeq]);
-  const items = useMemo(() => buildItems(visible), [visible]);
+  const comments = useSession((s) => s.comments);
+  const items = useMemo(() => {
+    // Steps someone commented on, or that a jump points at, stay visible on their own.
+    const keep = new Set(Object.values(comments).map((c) => c.event_seq));
+    if (highlight) keep.add(highlight);
+    if (openThread) keep.add(openThread);
+    return groupReads(buildItems(visible), keep);
+  }, [visible, comments, highlight, openThread]);
   const decision = useMemo(() => openDecision(events), [events]);
   const isDriver = session?.driver_id === me;
   const live = viewSeq === null;

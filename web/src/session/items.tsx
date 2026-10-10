@@ -6,7 +6,7 @@ import {
   Terminal, UserPlus, Archive, X, Hand,
 } from "lucide-react";
 import type { BatonEvent, Participant } from "../lib/types";
-import type { Item, PlanStep } from "../lib/derive";
+import type { Item, PlanStep, ToolItem } from "../lib/derive";
 import { clock, duration, modelLabel, shortClock } from "../lib/format";
 import { Avatar, AgentAvatar } from "../components/Avatar";
 import { BatonMark } from "../components/Logo";
@@ -123,6 +123,8 @@ export function TimelineItem({ item, ctx, events }: { item: Item; ctx: Ctx; even
           <ToolCard call={item.call} result={item.result} ctx={ctx} />
         </Row>
       );
+    case "group":
+      return <ReadGroup tools={item.tools} ctx={ctx} />;
     case "plan":
       return (
         <Row seq={item.seq} ctx={ctx} ts={item.call.ts}>
@@ -157,7 +159,9 @@ export function TimelineItem({ item, ctx, events }: { item: Item; ctx: Ctx; even
 }
 
 function StartItem({ ev, ctx }: { ev: BatonEvent; ctx: Ctx }) {
-  const who = person(ctx, ev.actor);
+  // External agents start their own sessions; they aren't human participants.
+  const who =
+    !ctx.people[ev.actor] && ev.payload.provider === "external" ? { name: String(ev.payload.model), color: "#52525b" } : person(ctx, ev.actor);
   return (
     <div id={`ev-${ev.seq}`} className="pb-2">
       <Meta>
@@ -349,6 +353,48 @@ function TerminalView({ command, output }: { command: string; output: string }) 
         </span>
       ))}
     </pre>
+  );
+}
+
+function ReadGroup({ tools, ctx }: { tools: ToolItem[]; ctx: Ctx }) {
+  const [open, setOpen] = useState(false);
+  const files = tools.filter((t) => t.call.payload.name === "read_file");
+  const dirs = tools.length - files.length;
+  const label = [
+    files.length && `Read ${files.length} file${files.length > 1 ? "s" : ""}`,
+    dirs && `listed ${dirs} folder${dirs > 1 ? "s" : ""}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const names = files.map((t) => String(t.call.payload.input?.path || "").split("/").pop()).filter(Boolean);
+  if (open) {
+    return (
+      <div className="space-y-2">
+        <button onClick={() => setOpen(false)} className="flex items-center gap-1.5 pl-[34px] text-xs text-ink-3 hover:text-ink-2">
+          <ChevronRight className="size-3 rotate-90" /> {label}
+        </button>
+        {tools.map((t) => (
+          <Row key={t.seq} seq={t.seq} ctx={ctx}>
+            <ToolCard call={t.call} result={t.result} ctx={ctx} />
+          </Row>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div data-seq={tools[0].seq} id={`ev-${tools[0].seq}`} className="pl-[34px]">
+      <button
+        onClick={() => setOpen(true)}
+        className="flex h-9 w-full items-center gap-2.5 rounded-lg border border-line bg-panel px-3 text-left hover:bg-sunken/60"
+      >
+        <span className="grid size-5 place-items-center text-ink-3">
+          <FileText className="size-3.5" />
+        </span>
+        <span className="shrink-0 text-[13px] text-ink-3">{label}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-ink-4">{names.join(", ")}</span>
+        <ChevronRight className="size-3.5 shrink-0 text-ink-4" />
+      </button>
+    </div>
   );
 }
 

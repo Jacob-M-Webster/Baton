@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildItems, currentPlan, marks, openDecision, stats } from "./derive";
+import { buildItems, currentPlan, groupReads, marks, openDecision, stats } from "./derive";
 import type { BatonEvent, Payload } from "./types";
 
 let seq = 0;
@@ -50,6 +50,28 @@ describe("buildItems", () => {
     const early = buildItems(log.filter((e) => e.seq <= 3));
     const tool = early.find((i) => i.kind === "tool");
     expect(tool && tool.kind === "tool" && tool.result).toBeUndefined();
+  });
+});
+
+describe("groupReads", () => {
+  it("folds runs of finished reads into one row, but not across commentary or for commented steps", () => {
+    seq = 0;
+    const log = [
+      ev("tool.call", { call_id: "a", name: "read_file", input: { path: "a.py" } }),
+      ev("tool.result", { call_id: "a", output: "" }),
+      ev("tool.call", { call_id: "b", name: "list_files", input: {} }),
+      ev("tool.result", { call_id: "b", output: "" }),
+      ev("tool.call", { call_id: "c", name: "read_file", input: { path: "c.py" } }),
+      ev("tool.result", { call_id: "c", output: "" }),
+      ev("agent.text", { text: "Now writing.", turn: 2 }),
+      ev("tool.call", { call_id: "d", name: "read_file", input: { path: "d.py" } }),
+      ev("tool.result", { call_id: "d", output: "" }),
+    ];
+    const grouped = groupReads(buildItems(log));
+    expect(grouped.map((i) => i.kind)).toEqual(["group", "text", "tool"]);
+    expect(grouped[0].kind === "group" && grouped[0].tools.length).toBe(3);
+    const keep = groupReads(buildItems(log), new Set([3]));
+    expect(keep.map((i) => i.kind)).toEqual(["tool", "tool", "tool", "text", "tool"]);
   });
 });
 
