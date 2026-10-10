@@ -13,6 +13,7 @@ Adapters translate this to their wire format and stream back StreamEvents.
 """
 from __future__ import annotations
 
+import importlib
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Literal, Protocol
 
@@ -46,6 +47,16 @@ class Provider(Protocol):
     async def complete(self, *, model: str, system: str, prompt: str, max_tokens: int = 1024) -> str: ...
 
     async def list_models(self) -> list[str]: ...
+
+
+class LazyModule:
+    """Import a heavy SDK on first use, so the server (and a restart mid-demo) comes up fast."""
+
+    def __init__(self, name: str):
+        self._name = name
+
+    def __getattr__(self, attr: str):
+        return getattr(importlib.import_module(self._name), attr)
 
 
 def text_of(blocks: list[dict]) -> str:

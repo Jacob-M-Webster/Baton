@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 from typing import AsyncIterator
 
-import openai
+from .base import LazyModule, ProviderError, StreamEvent, safe_tool_id
 
-from .base import ProviderError, StreamEvent, safe_tool_id
+openai = LazyModule("openai")
 
 
 class OpenAIProvider:
@@ -18,9 +18,16 @@ class OpenAIProvider:
         self.discover = discover
         self.base_url = base_url
         self.configured = bool(api_key)
-        self.client = openai.AsyncOpenAI(api_key=api_key or "missing", base_url=base_url or None, max_retries=1,
-                                         timeout=300, http_client=http_client)
+        self._client_args = dict(api_key=api_key or "missing", base_url=base_url or None, max_retries=1,
+                                 timeout=300, http_client=http_client)
+        self._client = None
         self._stream_usage = True  # some local servers reject stream_options
+
+    @property
+    def client(self):
+        if self._client is None:
+            self._client = openai.AsyncOpenAI(**self._client_args)
+        return self._client
 
     async def list_models(self) -> list[str]:
         if not self.discover:

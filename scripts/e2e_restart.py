@@ -26,7 +26,7 @@ def start_server(port: int, data: str) -> subprocess.Popen:
            "PYTHONPATH": str(ROOT / "backend")}
     proc = subprocess.Popen([sys.executable, "-m", "baton"], cwd=ROOT, env=env,
                             stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-    for _ in range(50):
+    for _ in range(300):  # first start on a cold disk can be slow
         try:
             urllib.request.urlopen(f"http://127.0.0.1:{port}/api/info", timeout=1)
             return proc

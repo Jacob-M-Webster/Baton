@@ -60,6 +60,18 @@ class CommentIn(BaseModel):
     parent_id: str | None = None
 
 
+def _warm_sdks(settings: Settings) -> None:
+    import importlib
+
+    kinds = {p.kind for p in settings.providers if p.api_key or p.discover_models}
+    for kind, module in (("anthropic", "anthropic"), ("openai", "openai")):
+        if kind in kinds:
+            try:
+                importlib.import_module(module)
+            except ImportError:
+                log.warning("%s SDK is not installed", module)
+
+
 def lan_urls(port: int) -> list[str]:
     urls = []
     try:
@@ -84,7 +96,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         resumed = await mgr.resume_all()
         if resumed:
             log.info("resumed %d running session(s)", resumed)
+        # Load the model SDKs off the event loop once the server is already answering.
+        warm = asyncio.create_task(asyncio.to_thread(_warm_sdks, settings))
         yield
+        warm.cancel()
         await mgr.shutdown()
         mgr.db.close()
 
