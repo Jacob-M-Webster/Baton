@@ -12,10 +12,10 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     settings = load_settings()
     app = create_app(settings)
-    print(f"\n  Baton is running on http://localhost:{settings.port}")
+    print(f"\n  Baton is running on http://localhost:{settings.port}", flush=True)
     for url in lan_urls(settings.port):
-        print(f"  Teammates on your network can join at {url}")
-    print()
+        print(f"  Teammates on your network can join at {url}", flush=True)
+    print(flush=True)
     uvicorn.run(app, host=settings.host, port=settings.port, log_level="warning", ws_ping_interval=20)
 
 

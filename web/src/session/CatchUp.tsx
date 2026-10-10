@@ -49,6 +49,8 @@ export function CatchUpBody({
   compact?: boolean;
 }) {
   const colorOf = (name: string) => people.find((p) => p.name === name)?.color || "#71717a";
+  // Returning visitors see only what changed while they were away.
+  const sinceYouLeft = card.since_seq && card.new_interventions ? card.new_interventions : [];
   return (
     <div className={clsx("space-y-4", compact && "space-y-3.5")}>
       <Section label="Doing now">
@@ -98,10 +100,10 @@ export function CatchUpBody({
           </Section>
         )}
       </div>
-      {card.changed.length > 0 && (
-        <Section label="What people changed">
+      {(sinceYouLeft.length > 0 || card.changed.length > 0) && (
+        <Section label={sinceYouLeft.length ? "Since you left" : "What people changed"}>
           <ul className="space-y-1.5">
-            {card.changed.map((c) => (
+            {(sinceYouLeft.length ? sinceYouLeft : card.changed).map((c) => (
               <li key={c.seq}>
                 <button onClick={() => onJump?.(c.seq)} className="flex w-full items-start gap-2 text-left text-[13px] leading-snug hover:text-ink">
                   <Avatar name={c.who} color={colorOf(c.who)} size={16} className="mt-px" />
