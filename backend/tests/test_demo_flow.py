@@ -183,3 +183,22 @@ async def test_offline_model_declines_tasks_it_cannot_do(mgr):
     evs = mgr.db.events(sid)
     assert not [e for e in evs if e["type"] == "tool.call"]
     assert "only run the rehearsed task" in [e for e in evs if e["type"] == "agent.text"][0]["payload"]["text"]
+
+
+async def test_insights_summarize_interventions(mgr):
+    from baton.insights import compute
+
+    sid = await run_to_decision(mgr)
+    mgr.join(sid, "u_bob")
+    await mgr.command(sid, "u_bob", {"type": "suggest", "text": "use the new middleware"})
+    sug = [e for e in mgr.db.events(sid) if e["type"] == "human.message"][-1]
+    await mgr.command(sid, "u_alice", {"type": "promote", "seq": sug["seq"]})
+    await mgr.command(sid, "u_alice", {"type": "grant_driver", "to": "u_bob"})
+    dp = ctx.open_decisions(mgr.db.events(sid))[0]
+    await mgr.command(sid, "u_bob", {"type": "answer_decision", "seq": dp["seq"], "answer": "Per API key"})
+    data = compute(mgr.db)
+    by = {k["kind"]: k["count"] for k in data["by_kind"]}
+    assert by["promoted"] == 1 and by["handoff"] == 1 and by["decision"] == 1 and by["steer"] == 0
+    assert data["interventions"] == 3 and sum(data["position"]) == 3
+    assert data["people"] == 2 and data["models"][0]["model"] == "baton-demo"
+    assert data["median_first_intervention_s"] is not None

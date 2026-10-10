@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { GitFork, Moon, Plus, Presentation, Sun } from "lucide-react";
+import { BarChart3, GitFork, Moon, Plus, Presentation, Sun } from "lucide-react";
 import clsx from "clsx";
 import { useSessionList } from "../lib/sessions";
 import { useIdentity } from "../lib/identity";
@@ -32,6 +32,16 @@ export function Sidebar() {
         >
           <Plus className="size-4 text-ink-3" />
           New session
+        </Link>
+        <Link
+          href="/insights"
+          className={clsx(
+            "mt-1 flex h-8 items-center gap-2 rounded-lg px-2.5 text-[13px] text-ink-2 hover:bg-sunken",
+            loc === "/insights" && "bg-sunken font-medium text-ink",
+          )}
+        >
+          <BarChart3 className="size-4 text-ink-3" />
+          Insights
         </Link>
       </div>
       <div className="px-4 pb-1.5 text-[11px] font-medium tracking-wide text-ink-4 uppercase">Sessions</div>

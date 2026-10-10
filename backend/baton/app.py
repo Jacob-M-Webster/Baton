@@ -144,6 +144,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         out = await asyncio.gather(*(one(p) for p in settings.providers))
         return {"providers": out}
 
+    @app.get("/api/insights")
+    async def insights(request: Request):
+        from .insights import compute
+
+        return compute(mgr(request).db)
+
     @app.get("/api/repos")
     async def repos():
         return {"repos": list_sample_repos()}

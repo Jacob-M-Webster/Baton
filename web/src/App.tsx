@@ -7,6 +7,7 @@ import { Home } from "./pages/Home";
 import { SessionPage } from "./pages/SessionPage";
 import { Sidebar } from "./components/Sidebar";
 import { Pitch } from "./pages/Pitch";
+import { Insights } from "./pages/Insights";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export function App() {
@@ -28,6 +29,9 @@ export function App() {
                   <SessionPage id={p.id} />
                 </ErrorBoundary>
               )}
+            </Route>
+            <Route path="/insights">
+              <Insights />
             </Route>
             <Route>
               <Home />

@@ -68,6 +68,7 @@
   --danger-soft: #fde8ea;
   --add: #e6f6ea;
   --del: #fdecec;
+  --viz-1: #2a78d6; /* single-series data hue, validated on the light panel */
   color-scheme: light;
 }
 
@@ -87,6 +88,7 @@
   --danger-soft: #2a1215;
   --add: #0f2617;
   --del: #2c1215;
+  --viz-1: #3987e5; /* the same hue stepped for the dark panel */
   color-scheme: dark;
 }
 
