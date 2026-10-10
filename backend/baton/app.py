@@ -362,8 +362,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 elif not isinstance(kind, str):
                     continue
                 elif kind == "typing":
+                    was_typing = conn.typing_until > time.time()
                     conn.typing_until = time.time() + 3
-                    m.broadcast_presence(sid)
+                    if not was_typing:
+                        m.broadcast_presence(sid)
+                    # Clear "typing…" for everyone once the window lapses without another keystroke.
+                    asyncio.get_running_loop().call_later(3.1, lambda: conn.typing_until <= time.time() and m.broadcast_presence(sid))
                 elif kind == "viewing":
                     v = msg.get("seq")
                     conn.viewing_seq = int(v) if isinstance(v, (int, float)) else None

@@ -82,3 +82,22 @@ def test_rejects_repo_path_traversal_and_bad_messages(tmp_path):
             ws.send_json({"type": 42})
             ws.send_json({"type": "ping"})
             drain_until(ws, lambda m: m["type"] == "pong")  # the socket survived all of the above
+
+
+def test_typing_indicator_clears_itself(tmp_path):
+    app = create_app(load_settings(data_dir=tmp_path, demo_speed=200.0))
+    with TestClient(app) as client:
+        client.post("/api/users", json={"id": "u_alice", "name": "Alice"})
+        client.post("/api/users", json={"id": "u_bob", "name": "Bob"})
+        sid = client.post("/api/sessions", json={"user_id": "u_alice", "task": "Add rate limiting"}).json()["id"]
+        with client.websocket_connect(f"/api/sessions/{sid}/stream?user_id=u_alice") as a, \
+                client.websocket_connect(f"/api/sessions/{sid}/stream?user_id=u_bob") as b:
+            for ws in (a, b):
+                ws.send_json({"type": "subscribe", "from_seq": 0})
+            drain_until(a, lambda m: m["type"] == "replay_done")
+            b.send_json({"type": "typing"})
+            typing = lambda m, v: m["type"] == "presence" and any(p["name"] == "Bob" and p["typing"] is v for p in m["participants"])
+            drain_until(a, lambda m: typing(m, True), limit=2000)
+            t0 = time.time()
+            drain_until(a, lambda m: typing(m, False), limit=5000)
+            assert 2.5 < time.time() - t0 < 6
