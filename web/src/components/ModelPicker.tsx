@@ -29,7 +29,8 @@ const SETUP: Record<string, string> = {
 };
 
 export function ProviderGlyph({ provider, className }: { provider: string; className?: string }) {
-  const letter = provider === "anthropic" ? "A" : provider === "openai" ? "O" : provider === "local" ? "L" : provider === "demo" ? "D" : provider[0]?.toUpperCase();
+  const letter =
+    { anthropic: "A", openai: "O", local: "L", demo: "D", external: "E" }[provider] ?? provider[0]?.toUpperCase();
   return (
     <span
       className={clsx(

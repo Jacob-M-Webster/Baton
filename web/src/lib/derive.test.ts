@@ -73,6 +73,12 @@ describe("derived session state", () => {
     expect(s.toolCalls).toBe(3);
   });
 
+  it("counts turns from the log when an external agent doesn't report them", () => {
+    seq = 0;
+    const log = [ev("agent.text", { text: "a", turn: 1 }), ev("tool.call", { call_id: "x", name: "read_file", turn: 1 }), ev("agent.text", { text: "b", turn: 2 })];
+    expect(stats(log).turns).toBe(2);
+  });
+
   it("puts human moments and decisions on the scrubber track", () => {
     const m = marks(sessionLog());
     expect(m.map((x) => x.type)).toEqual(["human.message", "agent.decision_point", "human.message"]);

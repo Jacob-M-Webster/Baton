@@ -229,7 +229,7 @@ const SLIDES: (() => ReactNode)[] = [
     <Slide eyebrow="Where it goes" title="The system of record for human and agent work.">
       <div className="grid grid-cols-3 gap-10">
         <Point icon={<Radio className="size-5" />} title="Ingest any agent">
-          Adapters for Claude Code, Codex and in-house agents stream into the same event schema.
+          Any agent can already stream into a session through the ingest API. Adapters for Claude Code and Codex are next.
         </Point>
         <Point icon={<Sparkles className="size-5" />} title="Learn from interventions">
           Where do humans step in, and how fast? The log answers it, per team and per model.

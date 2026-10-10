@@ -9,7 +9,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
@@ -41,6 +41,16 @@ class SessionIn(BaseModel):
 class ForkIn(BaseModel):
     user_id: str
     seq: int | None = None
+
+
+class ExternalSessionIn(BaseModel):
+    task: str = Field(min_length=1, max_length=8000)
+    agent: str = Field(default="External agent", max_length=40)
+    title: str | None = None
+
+
+class IngestIn(BaseModel):
+    events: list[dict] = Field(max_length=500)
 
 
 class CommentIn(BaseModel):
@@ -86,6 +96,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.exception_handler(CommandError)
     async def _cmd_err(_: Request, e: CommandError):
         return JSONResponse({"error": str(e)}, status_code=400)
+
+    @app.exception_handler(PermissionError)
+    async def _perm_err(_: Request, e: PermissionError):
+        return JSONResponse({"error": str(e)}, status_code=401)
 
     @app.exception_handler(KeyError)
     async def _key_err(_: Request, e: KeyError):
@@ -151,6 +165,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(400, f"Unknown repo {body.repo}")
         return m.create_session(user_id=body.user_id, task=body.task, provider=body.provider, model=body.model,
                                 repo=body.repo, title=body.title)
+
+    # ---- external agents ---------------------------------------------------------
+    def bearer(authorization: str | None) -> str | None:
+        if authorization and authorization.lower().startswith("bearer "):
+            return authorization[7:].strip()
+        return None
+
+    @app.post("/api/external/sessions")
+    async def create_external(body: ExternalSessionIn, request: Request):
+        session, token = mgr(request).create_external(task=body.task, agent=body.agent, title=body.title)
+        return {"session": session, "ingest_token": token, "url": f"/s/{session['id']}"}
+
+    @app.post("/api/sessions/{sid}/ingest")
+    async def ingest(sid: str, body: IngestIn, request: Request, authorization: str | None = Header(None)):
+        m = mgr(request)
+        m.check_ingest(sid, bearer(authorization))
+        seqs = m.ingest(sid, body.events)
+        return {"seqs": seqs, "head_seq": m.db.get_session(sid)["head_seq"]}
+
+    @app.get("/api/sessions/{sid}/inbox")
+    async def inbox(sid: str, request: Request, after: int = 0, wait: float = 20.0,
+                    authorization: str | None = Header(None)):
+        """Long-poll for what the humans said: steering, interrupts, decisions, hand-offs."""
+        m = mgr(request)
+        m.check_ingest(sid, bearer(authorization))
+        deadline = asyncio.get_running_loop().time() + max(0.0, min(wait, 30.0))
+        while True:
+            items = m.inbox(sid, after)
+            head = m.db.get_session(sid)["head_seq"]
+            if items or asyncio.get_running_loop().time() >= deadline:
+                return {"events": items, "head_seq": head}
+            await asyncio.sleep(0.25)
 
     @app.get("/api/sessions/{sid}")
     async def get_session(sid: str, request: Request, user_id: str | None = None):

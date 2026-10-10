@@ -160,7 +160,10 @@ function Overview({
           <Stat label="Agent turns" value={String(st.turns)} />
           <Stat label="Tool calls" value={String(st.toolCalls)} />
           <Stat label="Human interventions" value={String(st.interventions)} />
-          <Stat label="Tokens in / out" value={`${compact(st.inputTokens)} / ${compact(st.outputTokens)}`} />
+          <Stat
+            label="Tokens in / out"
+            value={st.inputTokens + st.outputTokens ? `${compact(st.inputTokens)} / ${compact(st.outputTokens)}` : "—"}
+          />
           <Stat label="Files changed" value={String(st.filesChanged)} />
         </dl>
         {st.models.length > 0 && (

@@ -10,9 +10,12 @@ fans it out in one synchronous step, so subscribers always see seq order.
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import logging
 import random
+import re
+import secrets
 import time
 from pathlib import Path
 
@@ -31,6 +34,11 @@ log = logging.getLogger("baton")
 COLORS = ["#2563eb", "#db2777", "#059669", "#d97706", "#7c3aed", "#0891b2", "#dc2626", "#4f46e5"]
 ACTIVE = {"running"}
 MAX_AUTONOMOUS_TURNS = 60
+EXTERNAL = "external"  # provider id for sessions driven by an agent running elsewhere
+
+# What an external agent may write into its session, and what it reads back from its inbox.
+INGEST_TYPES = {"agent.text", "agent.thinking", "tool.call", "tool.result", "agent.plan", "agent.decision_point", "agent.turn"}
+INBOX_TYPES = {"human.message", "human.interrupt", "human.decision", "control.driver_changed"}
 
 
 class CommandError(Exception):
@@ -140,6 +148,11 @@ class SessionManager:
         self.start_runner(s["id"])
         return self.session_view(s["id"])
 
+    def wake_runner(self, session_id: str) -> None:
+        s = self.db.get_session(session_id)
+        if s and s["provider"] != EXTERNAL:
+            self.start_runner(session_id).wake.set()
+
     def start_runner(self, session_id: str) -> "Runner":
         r = self.runners.get(session_id)
         if r is None or r.task is None or r.task.done():
@@ -152,7 +165,7 @@ class SessionManager:
         """On boot, pick every unfinished session back up from its log."""
         n = 0
         for s in self.db.list_sessions():
-            if s["status"] in ("done",):
+            if s["status"] in ("done",) or s["provider"] == EXTERNAL:
                 continue
             events = self.db.events(s["id"])
             calls = {e["payload"]["call_id"]: e for e in events if e["type"] == "tool.call"}
@@ -175,6 +188,62 @@ class SessionManager:
             await r.stop()
         for t in list(self._bg):
             t.cancel()
+
+    # ---- external agents ------------------------------------------------------
+    def create_external(self, *, task: str, agent: str, title: str | None = None) -> tuple[dict, str]:
+        """A session whose agent runs elsewhere and streams its steps in through the ingest API."""
+        task, agent = task.strip(), (agent.strip() or "External agent")[:40]
+        if not task:
+            raise CommandError("Describe the task the agent is working on")
+        bot = "ext_" + (re.sub(r"[^a-z0-9]+", "-", agent.lower()).strip("-") or "agent")
+        self.ensure_user(bot, agent, "#52525b")
+        title = (title or "").strip() or ctx.clip(ctx.first_sentence(task), 72)
+        s = self.db.create_session(title=title, task=task, created_by=bot, provider=EXTERNAL, model=agent,
+                                   config={"external": True}, status="running", driver_id=None)
+        token = secrets.token_urlsafe(24)
+        self.db.set_ingest_token(s["id"], token)
+        self.append(s["id"], bot, "session.started", {"task": task, "title": title, "repo": None,
+                                                     "provider": EXTERNAL, "model": agent})
+        return self.session_view(s["id"]), token
+
+    def check_ingest(self, session_id: str, token: str | None) -> dict:
+        s = self.db.get_session(session_id)
+        expected = self.db.ingest_token(session_id) if s else None
+        if not s or not expected or not token or not hmac.compare_digest(expected, token):
+            raise PermissionError("Bad session id or ingest token")
+        return s
+
+    def ingest(self, session_id: str, events: list[dict]) -> list[int]:
+        seqs = []
+        for e in events:
+            t, p = e.get("type"), e.get("payload") or {}
+            if t == "session.status":
+                status = p.get("status")
+                if status not in ("running", "waiting_input", "done", "error"):
+                    raise CommandError(f"Unsupported status: {status}")
+                self.set_status(session_id, status, **{k: v for k, v in p.items() if k in ("reason", "summary")})
+                seqs.append(self.db.get_session(session_id)["head_seq"])
+                continue
+            if t not in INGEST_TYPES:
+                raise CommandError(f"Unsupported event type: {t}")
+            if t in ("tool.call", "tool.result", "agent.decision_point") and not p.get("call_id"):
+                raise CommandError(f"{t} needs a call_id")
+            if t == "tool.call" and not p.get("name"):
+                raise CommandError("tool.call needs a name")
+            seqs.append(self.append(session_id, "agent", t, p)["seq"])
+        return seqs
+
+    def inbox(self, session_id: str, after: int) -> list[dict]:
+        names = self.names(session_id)
+        out = []
+        for e in self.db.events(session_id, after=after):
+            if e["type"] not in INBOX_TYPES:
+                continue
+            if e["type"] == "human.message" and e["payload"].get("mode") != "steer":
+                continue
+            out.append({**e, "author": ctx.actor_name(names, e["actor"]),
+                        **({"text": ctx.steer_text(e, names)} if e["type"] == "human.message" else {})})
+        return out
 
     # ---- joins -----------------------------------------------------------
     def join(self, session_id: str, user_id: str, role: str | None = None) -> dict:
@@ -234,7 +303,7 @@ class SessionManager:
             require_driver()
             if s["status"] in ("waiting_input", "error", "paused") and not ctx.open_decisions(self.db.events(session_id)):
                 self.set_status(session_id, "running", reason="resumed")
-                self.start_runner(session_id).wake.set()
+                self.wake_runner(session_id)
         elif kind == "answer_decision":
             require_driver()
             self._answer_decision(session_id, user_id, msg)
@@ -269,6 +338,8 @@ class SessionManager:
         elif kind == "set_model":
             require_driver()
             provider, model = msg.get("provider"), (msg.get("model") or "").strip()
+            if s["provider"] == EXTERNAL:
+                raise CommandError("This session is driven by an external agent; its model is chosen there")
             if not self.settings.provider(provider) or not model:
                 raise CommandError("Unknown model")
             if provider == s["provider"] and model == s["model"]:
@@ -280,7 +351,7 @@ class SessionManager:
             self.broadcast_session(session_id)
             if s["status"] == "error":
                 self.set_status(session_id, "running", reason="model changed")
-                self.start_runner(session_id).wake.set()
+                self.wake_runner(session_id)
         elif kind == "rename":
             require_driver()
             title = (msg.get("title") or "").strip()[:100]
@@ -294,7 +365,7 @@ class SessionManager:
         s = self.db.get_session(session_id)
         if s["status"] != "running" and not ctx.open_decisions(self.db.events(session_id)):
             self.set_status(session_id, "running", reason="steered")
-        self.start_runner(session_id).wake.set()
+        self.wake_runner(session_id)
 
     def _promote(self, session_id: str, user_id: str, msg: dict) -> None:
         if msg.get("comment_id"):
@@ -342,7 +413,7 @@ class SessionManager:
             "decision_seq": seq, "call_id": dp["payload"]["call_id"], "answer": answer,
         })
         self.set_status(session_id, "running", reason="decision made")
-        self.start_runner(session_id).wake.set()
+        self.wake_runner(session_id)
 
     def _change_driver(self, session_id: str, frm: str | None, to: str, reason: str, note: str | None = None,
                        actor: str | None = None) -> None:
@@ -383,6 +454,8 @@ class SessionManager:
         s = self.db.get_session(session_id)
         if not s:
             raise KeyError(session_id)
+        if s["provider"] == EXTERNAL:
+            raise CommandError("Forking sessions driven by an external agent isn't supported yet")
         seq = max(1, min(seq, s["head_seq"]))
         events = self.db.events(session_id, upto=seq)
         # Never fork in the middle of a tool call: back up to before an unfinished call.

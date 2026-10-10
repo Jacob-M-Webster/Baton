@@ -70,6 +70,11 @@ CREATE TABLE IF NOT EXISTS comments (
   created_at REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS comments_by_session ON comments(session_id, event_seq);
+
+CREATE TABLE IF NOT EXISTS ingest_tokens (
+  session_id TEXT PRIMARY KEY,
+  token TEXT NOT NULL
+);
 """
 
 SESSION_FIELDS = (
@@ -174,6 +179,13 @@ class DB:
             (session_id, type_),
         ).fetchone()
         return _event(r) if r else None
+
+    def set_ingest_token(self, session_id: str, token: str) -> None:
+        self.conn.execute("INSERT OR REPLACE INTO ingest_tokens (session_id, token) VALUES (?, ?)", (session_id, token))
+
+    def ingest_token(self, session_id: str) -> str | None:
+        r = self.conn.execute("SELECT token FROM ingest_tokens WHERE session_id=?", (session_id,)).fetchone()
+        return r[0] if r else None
 
     def open_decision_count(self, session_id: str) -> int:
         r = self.conn.execute(

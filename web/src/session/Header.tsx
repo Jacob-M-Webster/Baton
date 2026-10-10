@@ -34,7 +34,7 @@ export function SessionHeader({
   const mine = participants.find((p) => p.user_id === me);
   const others = participants.filter((p) => p.user_id !== session.driver_id && p.role !== "viewer");
   // The server also lets an owner take over from an idle driver; the button only offers the common case.
-  const canTake = !isDriver && mine?.role !== "viewer" && !!driver && !driver.online;
+  const canTake = !isDriver && mine?.role !== "viewer" && (!driver || !driver.online);
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-panel px-3 sm:gap-3 sm:px-4">
@@ -64,7 +64,7 @@ export function SessionHeader({
           compact
           provider={session.provider}
           model={session.model}
-          disabled={!isDriver}
+          disabled={!isDriver || session.provider === "external"}
           onChange={(provider, model) => send({ type: "set_model", provider, model })}
         />
         </div>
@@ -111,7 +111,7 @@ export function SessionHeader({
             )}
           </Popover>
         ) : canTake ? (
-          <Button onClick={() => send({ type: "take_driver" })} title={`${driver?.name || "The driver"} is away`}>
+          <Button onClick={() => send({ type: "take_driver" })} title={driver ? `${driver.name} is away` : "Nobody is driving yet"}>
             <BatonMark className="size-3.5" />
             <span className="hidden sm:inline">Take the baton</span>
             <span className="sm:hidden">Take</span>

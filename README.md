@@ -92,6 +92,31 @@ Two laptops, Alice and Bob. Model: whichever is configured (Offline demo works w
 
 ![The finished session](docs/screenshots/done.png)
 
+## Bring your own agent
+
+Baton's own runner is one way to drive a session. Any agent that runs elsewhere (a CLI, a CI job,
+an in-house loop) can stream its steps into a session and take steering back, through a small
+authenticated API. `integrations/baton_client.py` wraps it with the standard library only:
+
+```python
+from baton_client import BatonSession
+
+s = BatonSession.create("http://localhost:8000", task="Audit POST /notes", agent="audit-bot")
+print("watch at", s.url)               # humans open this, take the baton, comment, steer
+s.plan(["Read handler", "Run tests", "Report"])
+s.say("Reading the handler.")
+call = s.tool("run_command", {"command": "pytest"}); s.result(call, output)
+for msg in s.poll():                   # steering, interrupts, hand-offs since last time
+    ...
+answer = s.ask("400 or 422 for bad input?", ["400", "422"])   # blocks until the driver decides
+s.done("Found 3 gaps.")
+```
+
+Try it: `python integrations/example_agent.py` prints a session link; open it, take the baton, and
+talk to the agent from the browser. Under the hood: `POST /api/external/sessions` returns an ingest
+token, `POST /api/sessions/{id}/ingest` appends agent events, and `GET /api/sessions/{id}/inbox`
+long-polls for what the humans said.
+
 ## How it works
 
 ```

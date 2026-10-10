@@ -151,7 +151,9 @@ export function stats(events: BatonEvent[]): Stats {
     models: [], started: events[0]?.ts ?? null, ended: null, filesChanged: 0,
   };
   const files = new Set<string>();
+  const turnsSeen = new Set<number>(); // for agents that don't report agent.turn (external agents)
   for (const e of events) {
+    if ((e.type === "agent.text" || e.type === "tool.call") && typeof e.payload.turn === "number") turnsSeen.add(e.payload.turn);
     if (e.type === "agent.turn") {
       s.turns++;
       s.inputTokens += e.payload.usage?.input_tokens || 0;
@@ -172,6 +174,7 @@ export function stats(events: BatonEvent[]): Stats {
     }
   }
   s.filesChanged = files.size;
+  if (!s.turns) s.turns = turnsSeen.size;
   return s;
 }
 
