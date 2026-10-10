@@ -16,6 +16,26 @@ down the wrong path, and when the person who started it logs off, the work stall
 collaboration layer that sits on top of any agent: an append-only event log that everyone
 subscribes to, with roles, hand-offs and a memory of who changed what.
 
+## What's in the box
+
+- **Live shared sessions.** Every token, tool call, diff and test run streams to everyone in the
+  session over WebSockets; late joiners replay the log and land on the latest step.
+- **Catch-up cards** on join and on hand-off: the goal, what's done, what people changed, the open
+  question. Summarized by a cheap model when one is configured, built from the log otherwise.
+- **Roles and the baton.** One driver steers, interrupts (Esc) and answers decision points.
+  Collaborators suggest or comment on any step; the driver sends the good ones to the agent with
+  both names attached. Hand off, ask for the baton, or take it from an absent driver.
+- **Presence.** Who's online, who's typing, and which step each person is reading.
+- **Scrubber, replay and fork.** Rewind to any step, replay the run, or fork a new branch of the
+  work from there (file changes are restored from the log).
+- **Any model, switchable mid-session.** Claude, OpenAI, local weights, or any OpenAI/Anthropic
+  compatible endpoint, plus an offline demo model.
+- **Bring your own agent.** External agents stream into a session and take steering back over a
+  small HTTP API.
+- **Durable.** SQLite WAL log; kill the server mid-run and sessions resume on restart.
+- **Insights** across sessions: how and when people intervene, time to first intervention,
+  per-model usage. **Audit export** of any session as JSON.
+
 ## Run it
 
 Requirements: Python 3.10+ and Node 18+.

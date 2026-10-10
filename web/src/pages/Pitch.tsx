@@ -232,7 +232,7 @@ const SLIDES: (() => ReactNode)[] = [
           Any agent can already stream into a session through the ingest API. Adapters for Claude Code and Codex are next.
         </Point>
         <Point icon={<Sparkles className="size-5" />} title="Learn from interventions">
-          Where do humans step in, and how fast? The log answers it, per team and per model.
+          Where do humans step in, and how fast? Insights already answers it from the log, per team and per model.
         </Point>
         <Point icon={<RotateCcw className="size-5" />} title="Durable by default">
           Multi-day runs on a workflow engine, with the same replay and hand-off semantics.
