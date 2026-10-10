@@ -40,7 +40,7 @@ class SessionIn(BaseModel):
 
 class ForkIn(BaseModel):
     user_id: str
-    seq: int
+    seq: int | None = None
 
 
 class CommentIn(BaseModel):
@@ -169,8 +169,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"events": m.db.events(sid, after, upto)}
 
     @app.post("/api/sessions/{sid}/fork")
-    async def fork(sid: str, body: ForkIn, request: Request):
-        return mgr(request).fork(sid, body.seq, body.user_id)
+    async def fork(sid: str, body: ForkIn, request: Request, seq: int | None = None):
+        at = body.seq if body.seq is not None else seq
+        if at is None:
+            raise HTTPException(400, "Pass the step to fork from as ?seq=N or in the body")
+        return mgr(request).fork(sid, at, body.user_id)
 
     @app.get("/api/sessions/{sid}/comments")
     async def comments(sid: str, request: Request):

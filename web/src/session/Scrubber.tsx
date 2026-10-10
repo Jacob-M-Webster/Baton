@@ -1,6 +1,6 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
-import { GitFork, Radio } from "lucide-react";
+import { GitFork, Pause, Play, Radio } from "lucide-react";
 import type { BatonEvent, Participant } from "../lib/types";
 import { marks } from "../lib/derive";
 import { clock } from "../lib/format";
@@ -29,11 +29,43 @@ export function Scrubber({
   const pos = (seq: number) => (head <= 1 ? 100 : ((seq - 1) / (head - 1)) * 100);
   const at = events.find((e) => e.seq === value);
   const watchers = participants.filter((p) => p.user_id !== me && p.online && p.viewing_seq !== null);
+
+  // Replay: step through the log like a recording, then rejoin live at the end.
+  const [playing, setPlaying] = useState(false);
+  const pos_ = useRef(value);
+  pos_.current = value;
+  useEffect(() => {
+    if (!playing) return;
+    const t = window.setInterval(() => {
+      const next = pos_.current + 1;
+      if (next >= head) {
+        setPlaying(false);
+        setViewSeq(null);
+      } else {
+        setViewSeq(next);
+      }
+    }, 220);
+    return () => window.clearInterval(t);
+  }, [playing, head, setViewSeq]);
+  const togglePlay = () => {
+    if (playing) return setPlaying(false);
+    if (viewSeq === null) setViewSeq(1);
+    setPlaying(true);
+  };
+
   if (head < 2) return null;
 
   return (
     <div className="flex items-center gap-3 border-t border-line bg-panel px-3 py-2 sm:px-4">
-      <div className="shrink-0 sm:w-[150px]">
+      <button
+        onClick={togglePlay}
+        className="grid size-7 shrink-0 place-items-center rounded-md text-ink-3 hover:bg-sunken hover:text-ink"
+        title={playing ? "Pause replay" : "Replay the session from the start"}
+        aria-label={playing ? "Pause replay" : "Replay session"}
+      >
+        {playing ? <Pause className="size-3.5 fill-current" /> : <Play className="size-3.5 fill-current" />}
+      </button>
+      <div className="shrink-0 sm:w-[130px]">
         {viewSeq === null ? (
           <span className="inline-flex items-center gap-1.5 text-xs font-medium text-live">
             <Radio className="size-3.5" /> Live
@@ -77,6 +109,7 @@ export function Scrubber({
           value={value}
           onChange={(e) => {
             const v = Number(e.target.value);
+            setPlaying(false);
             setViewSeq(v >= head ? null : v);
           }}
           aria-label="Scrub through the session"
@@ -88,7 +121,13 @@ export function Scrubber({
             <Button size="sm" variant="ghost" onClick={() => onFork(value)} aria-label="Fork from here">
               <GitFork className="size-3" /> <span className="hidden sm:inline">Fork from here</span>
             </Button>
-            <Button size="sm" onClick={() => setViewSeq(null)}>
+            <Button
+              size="sm"
+              onClick={() => {
+                setPlaying(false);
+                setViewSeq(null);
+              }}
+            >
               <span className="hidden sm:inline">Back to live</span>
               <span className="sm:hidden">Live</span>
             </Button>
