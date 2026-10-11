@@ -11,6 +11,8 @@ phone / laptop ──HTTPS──▶ Caddy :443 ──▶ Baton 127.0.0.1:8000 (s
                                           └── /opt/baton/data: session log (SQLite) + workspaces
 ```
 
+Handing the deploy to an AI agent on another machine? Point it at [AGENT_DEPLOY.md](AGENT_DEPLOY.md).
+
 ## What you need
 
 - The AWS CLI v2, signed in: `aws login` (or `aws configure` with an access key).

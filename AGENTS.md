@@ -51,7 +51,7 @@ python scripts/e2e_code.py --url http://localhost:8000   # optional: the code vi
 python scripts/e2e_mobile.py --url http://localhost:8000 # optional: judges on phones, open floor
 ```
 
-Deploying: `deploy/lightsail/` (see its README). Never commit `deploy/lightsail/server.env` or anything
+Deploying: `deploy/lightsail/` (see its README; agents doing a deploy follow `deploy/lightsail/AGENT_DEPLOY.md`). Never commit `deploy/lightsail/server.env` or anything
 in `deploy/lightsail/.ssh/`; both are gitignored and hold secrets.
 
 Building the web app needs Node 20.19+ or 22.12+. A portable Node unzipped into `.tools/node` (gitignored)

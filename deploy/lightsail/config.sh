@@ -7,7 +7,7 @@
 : "${BATON_INSTANCE:=baton}"                # Lightsail instance name
 : "${BATON_STATIC_IP:=${BATON_INSTANCE}-ip}"
 : "${BATON_KEY_NAME:=${BATON_INSTANCE}-key}"
-: "${BATON_RAM_GB:=1}"                      # 1 GB (~$7/month) is plenty: the models run elsewhere
+: "${BATON_RAM_GB:=1}"                      # 1 GB is plenty: the models run elsewhere (launch.sh prints the price)
 : "${BATON_BUNDLE:=}"                       # an explicit Lightsail bundle id wins over BATON_RAM_GB
 : "${BATON_DOMAIN:=}"                       # empty: <ip-with-dashes>.sslip.io, which needs no DNS setup
 : "${DRY_RUN:=0}"                           # 1: print what would change on AWS instead of doing it
