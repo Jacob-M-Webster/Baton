@@ -201,7 +201,7 @@ export default function CodeView({
                   key={t}
                   className={clsx(
                     "group/tab flex shrink-0 items-center gap-1.5 border-r border-line pr-1.5 pl-3 text-[12.5px]",
-                    isActive ? "bg-panel text-ink" : "text-ink-3 hover:text-ink-2",
+                    isActive ? "bg-panel text-ink shadow-[inset_0_1px_0_var(--color-baton)]" : "text-ink-3 hover:text-ink-2",
                   )}
                   title={t}
                 >

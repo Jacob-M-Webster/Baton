@@ -35,12 +35,8 @@ export function Insights() {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-[960px] px-6 pt-12 pb-20 md:px-10">
-        <p className="text-[13px] font-medium text-baton">Insights</p>
-        <h1 className="mt-2 text-[28px] leading-tight font-semibold tracking-[-0.02em]">How your team works with agents</h1>
-        <p className="mt-2 max-w-[620px] text-[14px] leading-relaxed text-ink-3">
-          Every steer, decision and hand-off is in the log, so you can see where people step in, how fast, and on which
-          models. Computed live from all sessions on this server.
-        </p>
+        <h1 className="text-[22px] leading-tight font-semibold tracking-[-0.015em]">Insights</h1>
+        <p className="mt-1 text-[13.5px] text-ink-3">Steers, decisions and hand-offs across every session on this server.</p>
 
         {!data ? (
           <div className="mt-10 h-40 animate-pulse rounded-xl bg-sunken" />

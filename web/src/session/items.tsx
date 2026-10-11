@@ -187,7 +187,7 @@ function StartItem({ ev, ctx }: { ev: BatonEvent; ctx: Ctx }) {
         <span className="tnum">{shortClock(ev.ts)}</span>
       </Meta>
       <div className="mt-3 rounded-xl border border-line bg-panel px-4 py-3.5">
-        <div className="text-[11px] font-medium tracking-wide text-ink-4 uppercase">Task</div>
+        <div className="text-[11.5px] font-semibold text-ink-3">Task</div>
         <p className="mt-1 text-[15px] leading-relaxed text-ink">{ev.payload.task}</p>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink-3">
           {ev.payload.github ? (

@@ -8,9 +8,12 @@ laptops. Requires: pip install playwright && python -m playwright install chromi
 from __future__ import annotations
 
 import argparse
+import atexit
+import json
 import subprocess
 import sys
 import time
+import urllib.request
 from pathlib import Path
 
 from playwright.sync_api import Page, expect, sync_playwright
@@ -21,6 +24,19 @@ def sign_in(page: Page, name: str) -> None:
     page.get_by_role("button", name="Continue").click()
 
 
+def delete_session(url: str, sid: str, headers: dict | None = None) -> None:
+    """Remove the rehearsal's session when the script exits, even after a failure. Only its creator may delete it,
+    and every run signs in a new Alice, so a session left behind can't be deleted from the app."""
+    headers = headers or {}
+    try:
+        with urllib.request.urlopen(urllib.request.Request(f"{url}/api/sessions/{sid}", headers=headers)) as r:
+            creator = json.load(r)["session"]["created_by"]
+        urllib.request.urlopen(urllib.request.Request(
+            f"{url}/api/sessions/{sid}?user_id={creator}", method="DELETE", headers=headers)).close()
+    except Exception as e:  # cleanup must not hide the run's own result
+        print(f"could not delete session {sid}: {e}", file=sys.stderr)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default="http://localhost:8000")
@@ -29,6 +45,7 @@ def main() -> int:
     ap.add_argument("--headed", action="store_true")
     ap.add_argument("--size", default="1440x900", help="viewport, e.g. 1280x800")
     ap.add_argument("--video", help="record both browsers into this folder and compose a side-by-side MP4")
+    ap.add_argument("--keep", action="store_true", help="leave the session on the server afterwards")
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -54,11 +71,14 @@ def main() -> int:
         # 1. Alice starts a session.
         alice.goto(args.url)
         sign_in(alice, "Alice")
+        alice.get_by_placeholder("What should the agent do?").fill("Add rate limiting to this API and write tests.")
         expect(alice.get_by_role("button", name="Start session")).to_be_enabled()
         shot(alice, "home")
         alice.get_by_role("button", name="Start session").click()
         alice.wait_for_url("**/s/*")
         session_url = alice.url
+        if not args.keep:
+            atexit.register(delete_session, args.url, session_url.rstrip("/").split("/")[-1])
         alice.get_by_text("Plan", exact=True).first.wait_for(timeout=20000)
         alice.wait_for_timeout(1500)
         shot(alice, "alice-agent-exploring")

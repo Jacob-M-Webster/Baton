@@ -42,13 +42,13 @@ export function SessionHeader({
   const canTake = !isDriver && mine?.role !== "viewer" && (!driver || !driver.online);
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-panel px-3 sm:gap-3 sm:px-4">
-      <div className="flex min-w-[96px] flex-1 items-center gap-2.5">
+    <header className="flex h-11 shrink-0 items-stretch gap-2 border-b border-line bg-panel px-3 sm:gap-3 sm:px-4">
+      <div className="flex min-w-[96px] flex-1 items-center gap-2">
         <Link href="/" className="hidden text-[13px] text-ink-4 hover:text-ink-2 lg:inline">
           Sessions
         </Link>
         <span className="hidden text-ink-4 lg:inline">/</span>
-        <h1 className="min-w-0 truncate text-[13.5px] font-semibold text-ink">{session.title}</h1>
+        <h1 className="min-w-0 truncate text-[13px] font-medium text-ink">{session.title}</h1>
         {session.parent_session_id && (
           <Link
             href={`/s/${session.parent_session_id}`}
@@ -59,7 +59,7 @@ export function SessionHeader({
         )}
         <StatusPill status={session.status} decision={hasDecision} />
         {session.config?.open_floor && (
-          <span className="hidden shrink-0 items-center gap-1 rounded-full bg-live/10 px-2 py-0.5 text-[11px] font-medium text-live sm:inline-flex" title="Everyone in the session can steer the agent">
+          <span className="hidden shrink-0 items-center gap-1 rounded-md bg-live/10 px-1.5 py-0.5 text-[11px] font-medium text-live sm:inline-flex" title="Everyone in the session can steer the agent">
             <Megaphone className="size-3" /> Open floor
           </span>
         )}
@@ -70,7 +70,7 @@ export function SessionHeader({
 
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
         {session.provider !== "external" && (
-          <div className="hidden items-center rounded-lg bg-sunken p-0.5 text-xs font-medium sm:flex" role="tablist" aria-label="View">
+          <div className="hidden self-stretch text-[12.5px] sm:flex" role="tablist" aria-label="View">
             {(
               [
                 ["timeline", ListTree, "Timeline"],
@@ -84,12 +84,13 @@ export function SessionHeader({
                 onClick={() => onView(v)}
                 title={v === "code" ? "The agent's workspace as an editor and terminal" : "Everything that happened, step by step"}
                 className={clsx(
-                  "inline-flex h-7 items-center gap-1.5 rounded-md px-2",
-                  view === v ? "bg-panel text-ink shadow-[0_1px_2px_rgb(0_0_0/0.08)]" : "text-ink-3 hover:text-ink-2",
+                  "relative inline-flex items-center gap-1.5 px-2.5",
+                  view === v ? "text-ink" : "text-ink-3 hover:text-ink-2",
                 )}
               >
                 <Icon className="size-3.5" />
                 <span className="hidden lg:inline">{label}</span>
+                {view === v && <span className="absolute inset-x-2 -bottom-px h-[2px] rounded-full bg-baton" aria-hidden />}
               </button>
             ))}
           </div>
@@ -128,7 +129,7 @@ export function SessionHeader({
             {(close) => (
               <>
                 <MenuLabel>Pass the baton to</MenuLabel>
-                {others.length === 0 && <p className="px-2.5 pb-2 text-xs text-ink-4">Share the link. Collaborators who join show up here.</p>}
+                {others.length === 0 && <p className="px-2.5 pb-2 text-xs text-ink-4">No one else has joined yet.</p>}
                 {others.map((p) => (
                   <MenuItem
                     key={p.user_id}
@@ -285,12 +286,10 @@ function ShareButton({
     >
       {() => (
         <div className="p-2">
-          <p className="text-[13px] font-semibold">Invite to this session</p>
+          <p className="text-[13px] font-semibold">Share session</p>
           <p className="mt-0.5 text-xs text-ink-3">
-            Anyone with the link joins{" "}
-            {viewOnly ? "as a viewer who can watch and comment" : openFloor ? "and can steer the agent directly" : "and can send you requests and comment"},
-            and starts with a catch-up of everything so far.
-            {code && " The link includes this server's access code, so only share it with people you'd let in."}
+            {viewOnly ? "Joins as a viewer: can watch and comment." : openFloor ? "Joins and can steer the agent." : "Joins and can send you requests."}
+            {code && " Includes the access code."}
           </p>
           {isDriver && (
             <button
@@ -308,8 +307,7 @@ function ShareButton({
               <span>
                 <span className="block text-[12.5px] font-medium text-ink">Open the floor</span>
                 <span className="block text-[11.5px] leading-snug text-ink-3">
-                  Collaborators' messages go straight to the agent instead of waiting for you. Good for a room of judges on
-                  their phones. You keep decisions, interrupts and the baton.
+                  Messages go straight to the agent. You keep decisions and the baton.
                 </span>
               </span>
             </button>
@@ -322,7 +320,7 @@ function ShareButton({
               <button
                 key={String(v)}
                 onClick={() => setViewOnly(v as boolean)}
-                className={clsx("h-7 rounded-md", viewOnly === v ? "bg-panel text-ink shadow-[0_1px_2px_rgb(0_0_0/0.08)]" : "text-ink-3 hover:text-ink-2")}
+                className={clsx("h-7 rounded-md", viewOnly === v ? "bg-panel text-ink shadow-[0_0_0_1px_var(--line)]" : "text-ink-3 hover:text-ink-2")}
               >
                 {label as string}
               </button>

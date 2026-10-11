@@ -126,7 +126,7 @@ export function FileTree({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-line px-3">
-        <span className="text-[11px] font-medium tracking-wide text-ink-4 uppercase">Files</span>
+        <span className="text-[11.5px] font-semibold text-ink-3">Files</span>
         {changed > 0 && <span className="tnum text-[11px] text-attn">{changed} changed</span>}
         {canCreate && (
           <button onClick={() => setCreating("")} className="ml-auto rounded-md p-1 text-ink-4 hover:bg-sunken hover:text-ink" title="New file" aria-label="New file">

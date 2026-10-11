@@ -28,7 +28,7 @@ export function IdentityModal({ onClose }: { onClose?: () => void }) {
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/30 p-4 backdrop-blur-[2px]">
       <form
-        className="animate-rise w-full max-w-sm rounded-2xl border border-line bg-raised p-6 shadow-[0_24px_64px_-24px_rgb(0_0_0/0.45)]"
+        className="animate-rise w-full max-w-sm rounded-2xl border border-line bg-raised p-6 shadow-[0_16px_48px_-12px_rgb(0_0_0/0.4)]"
         onSubmit={(e) => {
           e.preventDefault();
           submit();
@@ -38,8 +38,8 @@ export function IdentityModal({ onClose }: { onClose?: () => void }) {
         <h2 className="mt-5 text-lg font-semibold tracking-tight">{user ? "Your profile" : "Who's joining?"}</h2>
         <p className="mt-1 text-[13px] text-ink-3">
           {!user && location.pathname.startsWith("/s/")
-            ? "You've been invited to a live agent session. Pick a name so everyone knows who's here."
-            : "Teammates see this name next to everything you do in a session."}
+            ? "Pick a name to join the session."
+            : "Shown next to everything you do in a session."}
         </p>
         <div className="mt-5 flex items-center gap-3">
           <Avatar name={name || "?"} color={color} size={40} />

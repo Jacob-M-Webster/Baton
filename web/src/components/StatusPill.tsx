@@ -29,7 +29,7 @@ export function StatusPill({ status, decision }: { status: Status; decision?: bo
   return (
     <span
       className={clsx(
-        "inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full border px-2 text-xs font-medium whitespace-nowrap sm:px-2.5",
+        "inline-flex h-[22px] shrink-0 items-center gap-1.5 rounded-md border px-1.5 text-[11.5px] font-medium whitespace-nowrap sm:px-2",
         status === "running" && "border-live/25 bg-live/8 text-live",
         status === "waiting_input" && "border-attn/30 bg-attn-soft text-attn",
         status === "done" && "border-line bg-sunken text-ink-2",

@@ -11,6 +11,7 @@ Requires: pip install playwright && python -m playwright install chromium
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
 import sys
 import time
@@ -25,11 +26,25 @@ def sign_in(page: Page, name: str) -> None:
     page.get_by_role("button", name="Continue").click()
 
 
+def delete_session(url: str, sid: str, headers: dict | None = None) -> None:
+    """Remove the rehearsal's session when the script exits, even after a failure. Only its creator may delete it,
+    and every run signs in a new Alice, so a session left behind can't be deleted from the app."""
+    headers = headers or {}
+    try:
+        with urllib.request.urlopen(urllib.request.Request(f"{url}/api/sessions/{sid}", headers=headers)) as r:
+            creator = json.load(r)["session"]["created_by"]
+        urllib.request.urlopen(urllib.request.Request(
+            f"{url}/api/sessions/{sid}?user_id={creator}", method="DELETE", headers=headers)).close()
+    except Exception as e:  # cleanup must not hide the run's own result
+        print(f"could not delete session {sid}: {e}", file=sys.stderr)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default="http://localhost:8000")
     ap.add_argument("--code", default="", help="the server's BATON_ACCESS_CODE, if it has one")
     ap.add_argument("--out", default="shots")
+    ap.add_argument("--keep", action="store_true", help="leave the session on the server afterwards")
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -51,9 +66,12 @@ def main() -> int:
 
         alice.goto(f"{args.url}/{q}")
         sign_in(alice, "Alice")
+        alice.get_by_placeholder("What should the agent do?").fill("Add rate limiting to this API and write tests.")
         alice.get_by_role("button", name="Start session").click()
         alice.wait_for_url("**/s/*")
         sid = alice.url.split("/s/")[1].split("?")[0]
+        if not args.keep:
+            atexit.register(delete_session, args.url, sid, {"X-Baton-Access": args.code} if args.code else {})
         alice.get_by_text("legacy_throttle.py").first.wait_for(timeout=30000)
 
         # The judge scans the invite. The access code in the link is used once and dropped from the address bar.

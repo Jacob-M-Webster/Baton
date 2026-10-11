@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowRight, ArrowUpRight, Cpu, GitBranch, History, Users } from "lucide-react";
+import { GitBranch } from "lucide-react";
 import { api } from "../lib/api";
 import { useIdentity } from "../lib/identity";
 import { refreshSessions, useSessionList } from "../lib/sessions";
@@ -23,18 +23,12 @@ function remembered(): string {
   }
 }
 
-const EXAMPLES = [
-  "Add rate limiting to this API and write tests.",
-  "Add pagination to GET /notes with tests.",
-  "Find and fix any input validation gaps in POST /notes.",
-];
-
 export function Home() {
   const { user } = useIdentity();
   const [, navigate] = useLocation();
   const providers = useModelCatalog();
   const { sessions } = useSessionList();
-  const [task, setTask] = useState(EXAMPLES[0]);
+  const [task, setTask] = useState("");
   const [repo, setRepo] = useState("notes-api");
   const [github, setGithub] = useState(remembered);
   const [branch, setBranch] = useState("");
@@ -85,17 +79,11 @@ export function Home() {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-[880px] px-6 pt-16 pb-20 md:px-10">
-        <p className="text-[13px] font-medium text-baton">Shared agent sessions</p>
-        <h1 className="mt-2 text-[34px] leading-[1.1] font-semibold tracking-[-0.025em] text-ink">
-          Multiplayer for AI agents.
-        </h1>
-        <p className="mt-3 max-w-[600px] text-[15px] leading-relaxed text-ink-3">
-          Agents run on the server, not in one person's terminal. Share a link and your team can watch the work live,
-          steer it, and hand off the baton, on any model.
-        </p>
+      <div className="mx-auto w-full max-w-[760px] px-4 pt-[14vh] pb-20 sm:px-6">
+        <h1 className="text-[22px] leading-tight font-semibold tracking-[-0.015em] text-ink">New session</h1>
+        <p className="mt-1 text-[13.5px] text-ink-3">The agent runs on the server. Share the link to work on it together.</p>
 
-        <div className="mt-9 rounded-2xl border border-line bg-panel shadow-[0_1px_2px_rgb(0_0_0/0.04),0_12px_32px_-20px_rgb(0_0_0/0.18)]">
+        <div className="mt-5 rounded-xl border border-line bg-panel focus-within:border-line-strong">
           <textarea
             value={task}
             onChange={(e) => setTask(e.target.value)}
@@ -104,24 +92,13 @@ export function Home() {
             }}
             rows={3}
             placeholder="What should the agent do?"
-            className="block w-full resize-none rounded-t-2xl bg-transparent px-5 pt-4 pb-2 text-[15px] leading-relaxed outline-none placeholder:text-ink-4"
+            className="block w-full resize-none rounded-t-xl bg-transparent px-4 pt-3.5 pb-2 text-base leading-relaxed outline-none placeholder:text-ink-4 sm:text-[14.5px]"
           />
-          <div className="flex flex-wrap items-center gap-1.5 px-5 pb-3">
-            {(choice?.provider === "demo" ? EXAMPLES.slice(0, 1) : EXAMPLES).map((ex) => (
-              <button
-                key={ex}
-                onClick={() => setTask(ex)}
-                className="rounded-full border border-line px-2.5 py-1 text-xs text-ink-3 hover:border-line-strong hover:text-ink"
-              >
-                {ex}
-              </button>
-            ))}
-            {choice?.provider === "demo" && (
-              <span className="pl-1 text-xs text-ink-4">The offline demo model follows this rehearsed task. Pick a real model for anything else.</span>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-2 border-t border-line px-3 py-2.5">
-            <label className="inline-flex h-9 items-center gap-2 rounded-lg border border-line bg-panel pr-1 pl-2.5 text-[13px]">
+          {choice?.provider === "demo" && (
+            <p className="px-4 pb-3 text-xs text-ink-4">The offline demo only runs its rehearsed task: rate limiting for notes-api.</p>
+          )}
+          <div className="flex flex-wrap items-center gap-2 border-t border-line px-2.5 py-2">
+            <label className="inline-flex h-8 items-center gap-2 rounded-md border border-line bg-canvas pr-1 pl-2.5 text-[13px]">
               <span className="text-ink-4">Repo</span>
               <select
                 value={repo}
@@ -137,7 +114,7 @@ export function Home() {
               </select>
             </label>
             {onGithub && (
-              <div className="flex h-9 min-w-[260px] flex-1 items-center rounded-lg border border-line bg-panel text-[13px] focus-within:border-ink-3">
+              <div className="flex h-8 min-w-[260px] flex-1 items-center rounded-md border border-line bg-canvas text-[13px] focus-within:border-ink-3">
                 <input
                   autoFocus
                   value={github}
@@ -168,49 +145,31 @@ export function Home() {
               <span className="hidden text-xs text-ink-4 sm:inline">
                 <Kbd>⌘</Kbd> <Kbd>Enter</Kbd>
               </span>
-              <Button variant="primary" className="h-9 px-4" onClick={start} disabled={busy || !ready}>
+              <Button variant="primary" className="h-8 px-3.5" onClick={start} disabled={busy || !ready}>
                 {busy && onGithub ? "Cloning…" : "Start session"}
-                <ArrowRight className="size-4" />
               </Button>
             </div>
           </div>
         </div>
 
-        <div className="mt-8 grid gap-6 sm:grid-cols-3">
-          <Feature icon={<History className="size-4" />} title="Live and replayable">
-            Every token, tool call and human decision is an event. Join late, scrub back, fork from any step.
-          </Feature>
-          <Feature icon={<Users className="size-4" />} title="One driver, many hands">
-            Collaborators suggest and comment. The driver steers, approves decisions, and hands off in one click.
-          </Feature>
-          <Feature icon={<Cpu className="size-4" />} title="Any model">
-            Claude, GPT or local weights through one adapter layer. Switch mid-session; the log carries the context.
-          </Feature>
-        </div>
-
         {sessions.length > 0 && (
-          <section className="mt-14">
-            <div className="mb-3 flex items-baseline justify-between">
-              <h2 className="text-[13px] font-semibold text-ink">Recent sessions</h2>
-              <span className="text-xs text-ink-4">{sessions.length} total</span>
-            </div>
-            <div className="overflow-hidden rounded-xl border border-line bg-panel">
+          <section className="mt-12">
+            <h2 className="mb-2 px-1 text-[12px] font-semibold text-ink-3">Recent</h2>
+            <div className="overflow-hidden rounded-lg border border-line bg-panel">
               {sessions.slice(0, 8).map((s, i) => (
                 <div key={s.id} className={`group flex items-center hover:bg-sunken/60 ${i ? "border-t border-line" : ""}`}>
                 <button
                   onClick={() => navigate(`/s/${s.id}`)}
-                  className="flex min-w-0 flex-1 items-center gap-4 py-3 pl-4 text-left"
+                  className="flex min-w-0 flex-1 items-center gap-4 py-2.5 pl-3.5 text-left"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13.5px] font-medium text-ink">{s.title}</div>
-                    <div className="mt-1 flex items-center gap-2 text-xs text-ink-4">
+                    <div className="truncate text-[13px] font-medium text-ink">{s.title}</div>
+                    <div className="mt-0.5 flex items-center gap-2 text-[11.5px] text-ink-4">
                       <ProviderGlyph provider={s.provider} className="size-4 text-[9px]" />
                       <span>{modelLabel(s.model)}</span>
-                      <span>·</span>
                       <span className="tnum">{ago(s.updated_at)}</span>
                       {s.progress.total > 0 && (
                         <>
-                          <span>·</span>
                           <span className="tnum">
                             {s.progress.done}/{s.progress.total} steps
                           </span>
@@ -223,10 +182,9 @@ export function Home() {
                       <Avatar key={p.user_id} name={p.name} color={p.color} size={22} online={p.online} />
                     ))}
                   </div>
-                  <div className="w-[150px] text-right">
+                  <div className="hidden w-[150px] text-right sm:block">
                     <StatusPill status={s.status} decision={s.needs_decision} />
                   </div>
-                  <ArrowUpRight className="size-4 text-ink-4 opacity-0 group-hover:opacity-100" />
                 </button>
                 <div className="w-10 shrink-0 pr-3 pl-1">
                   {user && canDelete(s, user.id) && (
@@ -243,14 +201,3 @@ export function Home() {
   );
 }
 
-function Feature({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div className="flex items-center gap-2 text-[13px] font-semibold text-ink">
-        <span className="grid size-7 place-items-center rounded-lg border border-line bg-panel text-ink-2">{icon}</span>
-        {title}
-      </div>
-      <p className="mt-2 text-[13px] leading-relaxed text-ink-3">{children}</p>
-    </div>
-  );
-}

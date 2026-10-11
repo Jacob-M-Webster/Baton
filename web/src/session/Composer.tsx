@@ -99,7 +99,7 @@ export function Composer({
       )}
       <div
         className={clsx(
-          "rounded-xl border bg-panel shadow-[0_1px_2px_rgb(0_0_0/0.04),0_8px_24px_-16px_rgb(0_0_0/0.18)] focus-within:border-ink-4",
+          "rounded-xl border bg-panel focus-within:border-ink-4",
           steers ? "border-line-strong" : "border-line",
         )}
       >

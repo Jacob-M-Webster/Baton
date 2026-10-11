@@ -63,7 +63,7 @@ function Block({ title, children, right }: { title: string; children: React.Reac
   return (
     <section className="border-b border-line px-4 py-4">
       <div className="mb-2.5 flex items-center justify-between">
-        <h3 className="text-[11px] font-medium tracking-wide text-ink-4 uppercase">{title}</h3>
+        <h3 className="text-[11.5px] font-semibold text-ink-3">{title}</h3>
         {right}
       </div>
       {children}
@@ -207,12 +207,12 @@ function Files({ session, events }: { session: Session; events: BatonEvent[] }) 
       >
         <Code2 className="size-3.5" /> Open the code view
       </button>
-      <div className="px-2 pt-2 pb-1.5 text-[11px] font-medium tracking-wide text-ink-4 uppercase">Changed · {changed.length}</div>
+      <div className="px-2 pt-2 pb-1.5 text-[11.5px] font-semibold text-ink-3">Changed ({changed.length})</div>
       {changed.length === 0 && <p className="px-2 pb-2 text-xs text-ink-4">No changes yet.</p>}
       {changed.map((f) => (
         <FileRow key={f.path} f={f} onClick={() => showCode(f.path)} />
       ))}
-      <div className="px-2 pt-4 pb-1.5 text-[11px] font-medium tracking-wide text-ink-4 uppercase">Repository</div>
+      <div className="px-2 pt-4 pb-1.5 text-[11.5px] font-semibold text-ink-3">Repository</div>
       {rest.map((f) => (
         <FileRow key={f.path} f={f} onClick={() => showCode(f.path)} />
       ))}

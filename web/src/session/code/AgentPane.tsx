@@ -47,7 +47,7 @@ export function AgentPane({
   return (
     <aside className="hidden w-[330px] shrink-0 flex-col border-l border-line bg-canvas xl:flex">
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-line bg-panel px-3">
-        <span className="text-[11px] font-medium tracking-wide text-ink-4 uppercase">Agent</span>
+        <span className="text-[11.5px] font-semibold text-ink-3">Agent</span>
         <StatusPill status={session.status} decision={!!decision} />
         <button onClick={() => setView("timeline")} className="ml-auto text-[11.5px] text-ink-3 hover:text-ink">
           Full timeline

@@ -40,7 +40,7 @@ export function Popover({
       {open && (
         <div
           className={clsx(
-            "animate-rise absolute top-[calc(100%+6px)] z-40 rounded-xl border border-line bg-raised p-1.5 shadow-[0_16px_40px_-16px_rgb(0_0_0/0.3)]",
+            "animate-rise absolute top-[calc(100%+6px)] z-40 rounded-lg border border-line bg-raised p-1 shadow-[0_8px_24px_-8px_rgb(0_0_0/0.28)]",
             align === "right" ? "right-0" : "left-0",
             className,
           )}
@@ -54,7 +54,7 @@ export function Popover({
 }
 
 export function MenuLabel({ children }: { children: ReactNode }) {
-  return <div className="px-2.5 pt-2 pb-1 text-[11px] font-medium tracking-wide text-ink-4 uppercase">{children}</div>;
+  return <div className="px-2.5 pt-1.5 pb-1 text-[11.5px] font-medium text-ink-4">{children}</div>;
 }
 
 export function MenuItem({
