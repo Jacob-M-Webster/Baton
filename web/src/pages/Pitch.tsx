@@ -128,7 +128,7 @@ const SLIDES: (() => ReactNode)[] = [
     <div className="flex h-full flex-col justify-center">
       <Logo className="scale-[1.6] origin-left" />
       <h1 className="mt-14 max-w-[880px] text-[76px] leading-[1.0] font-semibold tracking-[-0.04em] text-ink">
-        Multiplayer for AI agents.
+        Multi-user coding agents.
       </h1>
       <p className="mt-6 max-w-[860px] text-[22px] leading-snug text-ink-3">
         Watch a running agent together, steer it, and pass the baton, on any model.
