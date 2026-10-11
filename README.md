@@ -1,6 +1,8 @@
 # Baton
 
-**Multiplayer for AI agents.** Baton runs a coding agent on a server instead of in one person's
+[See our demo here!](https://youtu.be/sKwHaWB106Q)
+
+**Multi-user AI coding agents.** Baton runs a coding agent on a server instead of in one person's
 terminal, and turns its work into a shared, live session. Anyone with the link can watch it work,
 catch up in seconds, comment on any step, and steer it. One person drives at a time; handing off is
 one click. It works with Claude, Gemini, OpenAI models, or local weights, and you can switch models
@@ -51,7 +53,7 @@ subscribes to, with roles, hand-offs and a memory of who changed what.
 - **Keys in the browser.** The **Settings** page (gear icon) sets the Anthropic, OpenAI and Gemini keys and the
   GitHub token without a restart. Keys are write-only there and saved in `data/keys.json`. Anyone who can open
   the app (past the access code, on a hosted server) can change them.
-- **Judges on their phones.** Share a link or QR code and anyone joins from a phone: a live status
+- **Mobile support** Share a link or QR code and anyone joins from a phone: a live status
   strip, one-tap quick prompts, and requests the driver sends to the agent with one tap (the person who
   asked hears when it lands). The driver can **open the floor** so everyone steers the agent directly,
   attributed, while the driver keeps decisions, interrupts and the baton.
@@ -116,7 +118,7 @@ cd web && npm test                               # frontend: event-log derivatio
 cd web && npm run dev                            # Vite on :5173, proxies /api to :8000
 python scripts/e2e_demo.py --out shots           # plays the two-person demo in two real browsers
 python scripts/e2e_code.py --out shots           # the code view: edit, save, terminal, presence, follow the agent
-python scripts/e2e_mobile.py --out shots         # a judge on a phone: join, request, steer on an open floor
+python scripts/e2e_mobile.py --out shots         # mobile usage: join, request, steer on an open floor
 python scripts/e2e_billing.py --out shots        # subscribe through Stripe Checkout with the 4242 test card (test key)
 python scripts/e2e_restart.py --out shots        # kills the server mid-run and checks the session resumes
 python scripts/e2e_controls.py --out shots       # interrupt, steer, switch model mid-session, fork
@@ -179,8 +181,7 @@ kept across deploys and restarts. With the AWS CLI signed in, from Git Bash or a
 Baton sells per-seat plans per workspace (**Team** and **Enterprise**, below) through Stripe.
 Stripe hosts Checkout, where people subscribe, and the customer portal, where they change cards, see
 invoices and cancel; card details never touch Baton. While billing is on, Claude, Gemini, OpenAI and local
-models need an active subscription. The offline demo model, joining, watching and requesting stay free, so
-judges never hit a paywall.
+models need an active subscription. The offline demo model, joining, watching and requesting stay free.
 
 Billing is off until you set a key:
 
@@ -327,3 +328,35 @@ with a per-session ingest token.
 * Durable execution for runs that last days (Temporal or a job queue), Postgres and object storage.
 * Org permissions, SSO, audit log export (already a JSON export per session), retention.
 * Analytics: where humans intervened, time to intervention, cost per session.
+
+## BIC Startup Challenge
+
+### Problem & Customer
+
+The industry-observed issue that Baton solves is the difficulty of collaboration in AI-accelerated software engineering teams. Whiteboarding and prototyping that was previously done in open conversations with other engineers has largely shifted to iterating design plans with a coding agent, taking other human engineers out of a loop. Thus, when a problem is encountered, recontextualizing a domain expert engineer is very time intensive, as you need to bring them up to speed from scratch. Baton solves this by bringing human collaboration back into software engineering, without sacrificing any of the efficiency brought about by AI-aided development, showing invited collaborators the full planning and context in which the original engineer ran into issues, and allowing the expert to prod the reasoning carefully.
+
+Our target customer base is fast-shipping software startups. To ground this decision, our team has observed the need for a Baton-like product in such startups. One of our team members interned as a software engineer a rapidly growing AI startup this summer, where they noted that an internal collaboration/sandboxing AI-native platform had been a roadmap develop item for platform and infra teams for the past 3 quarters, but it never got acted upon as it was too much of an investment to put a team of engineers on building and maintaining a usable and scalable system for the AI/human collaboration layer. Additionally, in fast-shipping cultures, documentation and planning often falls behind the scope of what is shipped, making the "recontextualization" even more time-consuming, and often incorrect or incomplete. 
+
+### Business Model
+
+We will market to our customers on a per-seat enterprise and team plan, billed monthly (annual billing is an option, but for our growth stage startups, monthly will often make more sense, as they will have more accurate estimations of how many seats they need month-after-month instead of per year). We will offer a free plan that allows for 1 active session (any actual team will need far more sessions, so there is no way for teams that would use this to skimp by on the free tier), with limited log retention (so sessions can only resume within a few days of creation), and further feature limitations (a full chart is provided on our billing page). We then offer team-based pricing at $25/seat/month, with longer but still capped log retention, unlimited sessions, and some additional features (for example, Slack notifications). Finally, we offer enterprise pricing at $50/seat/month, with unlimited log retention, unlimited sessions, and a full bevy of features (SSO, audit log export, etc.). In all of our plans, we allow people to view for free--we gate on session count.
+
+Since Baton is the only existing collaboration tool for software development, and we have demonstrated need from our customer base, we want to heavily index on early adoption--we provide a no-strings-attached free way for engineers to test the product, and then a cheaper tier (Team) that startups can use to determine fit before elevating to our premier option with a full feature suite. 
+
+### GTM
+
+Since we allow free viewers, there is an intuitive to convert people who have seen it used in real-time to purchasers. We would offer training sessions for how to use it at free webinars, which directly feeds our audience of viewers, who can then convert. We could offer first-month discounts to particularly relevant startups (ie, fields that are commonly audited, where stored logs are especially important). We can announce on Hacker News, and build out our Slack and Teams integrations more complete.
+
+### Validation, Competition, and Edge
+
+We have spoken directly to people in cutting edge tech startups who have desired the exact type of tooling (collaborative AI usage) that Baton is made for. Furthermore, we have collected first-hand testimony from various computer science students verifying that they would use this technology. The change is supported in other mediums: Microsoft Word's prevalence has waned as Google Docs (collaborative and online, as is Baton vs. existing coding agents), and similarly Figma (collaborative) has supplanted Photoshop (singular) as the go-to design option for many startups and companies.
+
+Baton is a one-of-a-kind technology, in that it truly allows collaboration between developers in interacting with AI tools. Existing technology can offer broadband observability (ie, Github Agent HQ or Slack Code), but these are only for allowing multiple developers to watch an agent executing tasks. Baton improves upon this by allowing multiple developers to be concurrently in the loop, actively iterating on prompts and requests, instead of just monitoring an agent run.
+
+### Next Steps and Scalability
+
+Our Total Addressable Market (TAM) consists of every software engineer in the world, billed at Team pricing--an estimation in total value here would be 36.5 million developers (per SlashData in early 2025) * $300/year/developer =$11 billion/year in revenue. The Serviceable Addressable Market (SAM), as an approximation, would be large (50+ developer) software companies, where agent use is common, in North America and Western Europe. We can approximate this to be 22 million developers (large companies) * 0.4 (share of developers in North America and Western Europe) * 0.5 (share of developers that frequently use agentic coding, per StackOverflow's April server) * $300/year/developer = $1.3 billion/year approximately in revenue. Our Serviceable Obtainable Market (estimated for a 5 year goal) would be 1000 paying companies averaging approximately 70 seats, and averaging $400/year/seat (with a target of 2/3 Team, 1/3 Enterprise pricing) yields $29 million ARR. All of these estimates are based on developers, but this type of tooling is something we plan to scale towards other usecases (ie, legal document review or marketing design iteration).
+
+To scale our product to something that can achieve these market shares, we have a roadmap of big ticket items we'd like to integrate. First, we would want to foster close relationships with early purchasers, so we can adapt targets based on real uses. User feedback aside, we plan to add in support for existing coding harnesses (Claude Code, Codex, Pi, etc.), instead of just model variability, to integrate seamlessly into existing workflow. We would want concrete integration with Slack, Teams, Jira, and other product management tools. Once we have these integrations, we would want to expand our sales team, to start reaching towards our 1000 company goal.
+
+As we scale, we need to consider what costs grow as we scale. The most obvious one is our current server and storage Lightsail usage, which is cheap to run for 4 students at a hackathon ($7/month for any reasonable usage we would achieve), but does not scale across hundreds to thousands of teams generating constant logs. As such, we would rent a private network and server from a B2B compute distributor, which is an easy switch to make (but something we didn't want to invest an upfront cost for out-of-pocket for a hackathon). We would also need to hire more engineers to support maintenance--the limiting factor preventing startups from greenfielding this is often the maintenance cost, as model APIs and harnesses constantly change, which is a cost we need to keep in mind--it is on us to update our layer to keep compatibility with harness and model changes. We also need to be cognizant of developments to related tools (as previously mentioned, Github Agents HQ and Slack Code address a subset of Baton's functionality), but we are confident that our multi-provider ecosystem will still be a draw (for example, Github Agents use Copilot, but Baton allows usage of any model provider).

@@ -42,7 +42,7 @@ function Mark({ children, className }: { children: ReactNode; className?: string
 /** A hand-drawn baton stroke that draws itself in. */
 function Stroke({ className, d = "M4 14 C 70 6, 160 4, 296 9" }: { className?: string; d?: string }) {
   return (
-    <svg viewBox="0 0 300 20" className={clsx("pointer-events-none absolute overflow-visible", className)} aria-hidden>
+    <svg viewBox="0 0 300 20" preserveAspectRatio="none" className={clsx("pointer-events-none absolute overflow-visible", className)} aria-hidden>
       <path d={d} fill="none" stroke="#f15a24" strokeWidth="7" strokeLinecap="round" pathLength={1} className="deck-draw" />
     </svg>
   );
@@ -119,12 +119,11 @@ function Cover() {
   return (
     <>
       <div className="absolute" style={{ left: 72, top: 172 }}>
-        <h1 className="text-[#1d1b18]" style={{ ...serif, fontSize: 96, lineHeight: 0.98, letterSpacing: "-0.015em" }}>
-          Multiplayer
+        <h1 className="text-[#1d1b18]" style={{ ...serif, fontSize: 88, lineHeight: 0.98, letterSpacing: "-0.015em" }}>
+          Multi-user
           <br />
-          for{" "}
           <span className="relative inline-block italic">
-            AI agents.
+            coding agents.
             <Stroke className="-bottom-[10px] left-0 h-[20px] w-[96%]" />
           </span>
         </h1>
