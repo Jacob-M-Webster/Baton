@@ -7,7 +7,7 @@ type Tier = "free" | PlanId;
 const TIERS: Tier[] = ["free", "team", "enterprise"];
 
 // Defaults for when the server's plans aren't known (the pitch deck, billing off); the server's win when present.
-const DEFAULT_PLANS: Plan[] = [
+export const DEFAULT_PLANS: Plan[] = [
   { id: "team", name: "Team", seat: 2500, interval: "month", min_seats: 1 },
   { id: "enterprise", name: "Enterprise", seat: 5000, interval: "year", min_seats: 50 },
 ];
