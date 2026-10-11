@@ -20,7 +20,13 @@ if [ -z "$(venv_python)" ]; then
   echo "Creating virtualenv with $PY…"
   "$PY" -m venv .venv
   "$(venv_python)" -m pip install -q --upgrade pip
+fi
+
+# Reinstall whenever requirements.txt changes, so an older venv picks up newly added SDKs.
+if ! cmp -s requirements.txt .venv/requirements.installed; then
+  echo "Installing Python dependencies…"
   "$(venv_python)" -m pip install -q -r requirements.txt
+  cp requirements.txt .venv/requirements.installed
 fi
 
 if [ ! -f web/dist/index.html ] || [ "${REBUILD:-0}" = "1" ]; then
