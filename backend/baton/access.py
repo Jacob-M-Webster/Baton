@@ -16,7 +16,8 @@ import time
 from starlette.requests import cookie_parser
 
 COOKIE = "baton_access"
-OPEN = {"/api/access"}
+# The unlock endpoint, and Stripe's webhook (verified by its own signature instead).
+OPEN = {"/api/access", "/api/billing/webhook"}
 # External agents already authenticate these with their session's ingest token.
 TOKEN_AUTH = re.compile(r"^/api/sessions/[^/]+/(ingest|inbox)$")
 

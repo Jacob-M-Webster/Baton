@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowRight, ArrowUpRight, Cpu, History, Users } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Cpu, History, Lock, Users } from "lucide-react";
 import { api } from "../lib/api";
+import { locked, price, useBilling } from "../lib/billing";
 import { useIdentity } from "../lib/identity";
 import { refreshSessions, useSessionList } from "../lib/sessions";
 import { ago, modelLabel } from "../lib/format";
@@ -33,9 +34,17 @@ export function Home() {
   }, []);
 
   // Default to the best configured model: Claude, then Gemini, then OpenAI, then local, then the offline demo.
+  // Without a subscription (when billing is on), start on the free offline demo instead.
+  const billing = useBilling((s) => s.view);
+  const billingLoaded = useBilling((s) => s.loaded);
+  const loadBilling = useBilling((s) => s.load);
   useEffect(() => {
-    if (choice || !providers.length) return;
-    const order = ["anthropic", "gemini", "openai", "local", "demo"];
+    loadBilling();
+  }, [loadBilling]);
+  const paywalled = locked(billing, choice?.provider);
+  useEffect(() => {
+    if (choice || !providers.length || !billingLoaded) return;
+    const order = billing?.required && !billing.active ? ["demo"] : ["anthropic", "gemini", "openai", "local", "demo"];
     for (const id of order) {
       const p = providers.find((x) => x.id === id && x.configured && x.models.length);
       if (p) {
@@ -44,7 +53,7 @@ export function Home() {
         return;
       }
     }
-  }, [providers, choice]);
+  }, [providers, choice, billing, billingLoaded]);
 
   const start = async () => {
     if (!user || !choice || !task.trim()) return;
@@ -116,13 +125,26 @@ export function Home() {
               <span className="hidden text-xs text-ink-4 sm:inline">
                 <Kbd>⌘</Kbd> <Kbd>Enter</Kbd>
               </span>
-              <Button variant="primary" className="h-9 px-4" onClick={start} disabled={busy || !choice || !task.trim()}>
+              <Button variant="primary" className="h-9 px-4" onClick={start} disabled={busy || !choice || !task.trim() || paywalled}>
                 Start session
                 <ArrowRight className="size-4" />
               </Button>
             </div>
           </div>
         </div>
+
+        {paywalled && billing && (
+          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-baton/30 bg-baton-soft/60 px-4 py-3 text-[13px]">
+            <Lock className="size-4 text-baton" />
+            <span className="min-w-0 flex-1 text-ink-2">
+              {modelLabel(choice!.model)} is part of <span className="font-medium text-ink">{billing.plan.name}</span> ({price(billing.plan)}). The
+              offline demo model is free.
+            </span>
+            <Button variant="baton" onClick={() => navigate("/billing")}>
+              Subscribe
+            </Button>
+          </div>
+        )}
 
         <div className="mt-8 grid gap-6 sm:grid-cols-3">
           <Feature icon={<History className="size-4" />} title="Live and replayable">

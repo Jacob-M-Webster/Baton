@@ -22,6 +22,7 @@ from pathlib import Path
 import httpx
 
 from . import context as ctx
+from .billing import Billing
 from .config import Settings
 from .db import DB, new_id
 from .hub import Hub
@@ -49,6 +50,10 @@ class CommandError(Exception):
     pass
 
 
+class PaymentRequired(CommandError):
+    """The model needs an active subscription (HTTP 402)."""
+
+
 class SessionManager:
     def __init__(self, settings: Settings, db: DB | None = None):
         self.settings = settings
@@ -59,6 +64,7 @@ class SessionManager:
         self._catchup_cache: dict[str, dict] = {}
         self._catchup_jobs: dict[str, asyncio.Task] = {}
         self._bg: set[asyncio.Task] = set()
+        self.billing = Billing(settings, self.db)
         self.terminals: dict[str, tuple[asyncio.Task, asyncio.Task]] = {}  # session -> (work, record) of a terminal command
 
     # ---- helpers ---------------------------------------------------------
@@ -142,6 +148,7 @@ class SessionManager:
         pconf = self.settings.provider(provider)
         if not pconf:
             raise CommandError(f"Unknown provider: {provider}")
+        self.require_plan(provider)
         title = (title or "").strip() or ctx.clip(ctx.first_sentence(task), 72)
         s = self.db.create_session(title=title, task=task, created_by=user_id, provider=provider, model=model,
                                    config={"repo": repo}, status="running")
@@ -152,6 +159,14 @@ class SessionManager:
         })
         self.start_runner(s["id"])
         return self.session_view(s["id"])
+
+    def require_plan(self, provider: str) -> None:
+        if not self.billing.allows(provider):
+            label = (self.settings.provider(provider).label if self.settings.provider(provider) else provider)
+            raise PaymentRequired(
+                f"{label} models need a {self.settings.plan_name} subscription. Subscribe on the Billing page, "
+                "or use the Offline demo model, which is free."
+            )
 
     def wake_runner(self, session_id: str) -> None:
         s = self.db.get_session(session_id)
@@ -377,6 +392,7 @@ class SessionManager:
                 raise CommandError("Unknown model")
             if provider == s["provider"] and model == s["model"]:
                 return
+            self.require_plan(provider)
             self.db.update_session(session_id, provider=provider, model=model)
             self.append(session_id, user_id, "control.model_changed", {
                 "from": {"provider": s["provider"], "model": s["model"]}, "to": {"provider": provider, "model": model},

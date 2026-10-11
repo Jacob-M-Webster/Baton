@@ -56,6 +56,14 @@ class Settings:
     slack_webhook: str | None
     providers: list[ProviderConfig] = field(default_factory=list)
     access_code: str | None = None  # when set, the API needs this shared code (see access.py)
+    # Billing (see billing.py). Off unless a Stripe key is set.
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    stripe_price_id: str | None = None  # use an existing price instead of creating one
+    billing_required: bool = True  # with Stripe on: real models need an active subscription
+    plan_name: str = "Baton Team"
+    plan_price_cents: int = 2900
+    plan_currency: str = "usd"
 
     def provider(self, pid: str) -> ProviderConfig | None:
         return next((p for p in self.providers if p.id == pid), None)
@@ -149,6 +157,13 @@ def load_settings(**overrides) -> Settings:
         keep_recent_turns=int(os.environ.get("BATON_KEEP_RECENT_TURNS", "6")),
         slack_webhook=os.environ.get("SLACK_WEBHOOK_URL") or None,
         access_code=os.environ.get("BATON_ACCESS_CODE", "").strip() or None,
+        stripe_secret_key=os.environ.get("STRIPE_SECRET_KEY", "").strip() or None,
+        stripe_webhook_secret=os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip() or None,
+        stripe_price_id=os.environ.get("STRIPE_PRICE_ID", "").strip() or None,
+        billing_required=os.environ.get("BATON_BILLING_REQUIRED", "1").strip().lower() not in ("0", "false", "no"),
+        plan_name=os.environ.get("BATON_PLAN_NAME", "Baton Team"),
+        plan_price_cents=int(os.environ.get("BATON_PLAN_PRICE_CENTS", "2900")),
+        plan_currency=os.environ.get("BATON_PLAN_CURRENCY", "usd").lower(),
         providers=providers,
     )
     for k, v in overrides.items():

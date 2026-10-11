@@ -164,6 +164,38 @@ links from **Share** include it, so a judge scanning the QR code lands straight 
 there's no code unless you set one. Full guide, costs and security notes:
 [deploy/lightsail/README.md](deploy/lightsail/README.md).
 
+## Billing (Stripe)
+
+Baton sells one flat monthly plan per workspace (**Baton Team, $29/month** by default) through Stripe.
+Stripe hosts Checkout, where people subscribe, and the customer portal, where they change cards, see
+invoices and cancel; card details never touch Baton. While billing is on, Claude, Gemini, OpenAI and local
+models need an active subscription. The offline demo model, joining, watching and requesting stay free, so
+judges never hit a paywall.
+
+Billing is off until you set a key:
+
+```bash
+# .env (or deploy/lightsail/server.env on the server); test keys first
+STRIPE_SECRET_KEY=sk_test_...
+```
+
+The first **Subscribe** click creates the product and monthly price in your Stripe account (found again by
+the lookup key `baton_team_monthly`), and the customer portal gets a default configuration. Then:
+
+- **Pay with a test card:** on the **Billing** page (sidebar), click Subscribe and pay with `4242 4242 4242 4242`,
+  any future expiry, any CVC. The page lists Stripe's other test cards (declines, 3D Secure). Coming back from
+  Checkout confirms the subscription with Stripe directly, so this works locally without webhooks.
+- **Prove it recurs:** `python scripts/stripe_setup.py renewal` subscribes a throwaway customer with
+  Stripe's test Visa on a test clock, skips ahead a month and shows the renewal invoice being paid.
+- **Webhooks:** keep the status current when people cancel in the portal or a renewal fails. On a server,
+  run `python scripts/stripe_setup.py webhook https://your-host` and put the printed `STRIPE_WEBHOOK_SECRET`
+  in its settings. Locally, `stripe listen --forward-to localhost:8000/api/billing/webhook` with the Stripe
+  CLI does the same. Webhooks are signature-checked, and the subscription is always re-fetched from Stripe.
+
+Settings: `BATON_PLAN_PRICE_CENTS`, `BATON_PLAN_NAME`, `BATON_PLAN_CURRENCY`, `STRIPE_PRICE_ID` (use an
+existing price) and `BATON_BILLING_REQUIRED=0` (show billing without locking models). A failed renewal
+(`past_due`) keeps the team working while Stripe retries, with a warning on the Billing page.
+
 ## The code view
 
 **Code** in the session header switches from the timeline to the workspace itself: the same folder

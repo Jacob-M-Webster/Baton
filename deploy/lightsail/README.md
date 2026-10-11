@@ -76,6 +76,18 @@ Settings you can override in the environment for any script: `AWS_REGION` (defau
 `AWS_PROFILE`, `BATON_INSTANCE` (default `baton`), `BATON_RAM_GB`, `BATON_BUNDLE`, and `BATON_DOMAIN`, if
 you point your own domain's A record at the static IP.
 
+## Billing
+
+Put your Stripe keys in `server.env`, deploy, then register the webhook for the server's address:
+
+```bash
+STRIPE_SECRET_KEY=sk_test_... python scripts/stripe_setup.py webhook "$(./deploy/lightsail/ctl.sh url | cut -d'?' -f1)"
+# copy the printed STRIPE_WEBHOOK_SECRET into server.env, then:
+./deploy/lightsail/deploy.sh
+```
+
+Stripe reaches `/api/billing/webhook` without the access code; its signature check protects it instead.
+
 ## Judges on their phones
 
 1. In your session, click **Share**. The link and QR code include the access code, so a judge scans,

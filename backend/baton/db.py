@@ -75,6 +75,12 @@ CREATE TABLE IF NOT EXISTS ingest_tokens (
   session_id TEXT PRIMARY KEY,
   token TEXT NOT NULL
 );
+
+-- Small server-wide settings, e.g. the workspace's Stripe subscription.
+CREATE TABLE IF NOT EXISTS kv (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 """
 
 SESSION_FIELDS = (
@@ -186,6 +192,13 @@ class DB:
     def ingest_token(self, session_id: str) -> str | None:
         r = self.conn.execute("SELECT token FROM ingest_tokens WHERE session_id=?", (session_id,)).fetchone()
         return r[0] if r else None
+
+    def get_kv(self, key: str) -> dict | None:
+        r = self.conn.execute("SELECT value FROM kv WHERE key=?", (key,)).fetchone()
+        return json.loads(r[0]) if r else None
+
+    def set_kv(self, key: str, value: dict) -> None:
+        self.conn.execute("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)", (key, json.dumps(value)))
 
     def open_decision_count(self, session_id: str) -> int:
         r = self.conn.execute(

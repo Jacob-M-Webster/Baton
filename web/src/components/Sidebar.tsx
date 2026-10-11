@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { BarChart3, GitFork, Moon, Plus, Presentation, Sun } from "lucide-react";
+import { BarChart3, CreditCard, GitFork, Moon, Plus, Presentation, Sun } from "lucide-react";
 import clsx from "clsx";
 import { useSessionList } from "../lib/sessions";
+import { useBilling } from "../lib/billing";
 import { useIdentity } from "../lib/identity";
 import { useTheme } from "../lib/theme";
 import { ago } from "../lib/format";
@@ -16,6 +17,11 @@ export function Sidebar() {
   const [loc] = useLocation();
   const { user } = useIdentity();
   const { dark, toggle } = useTheme();
+  const billing = useBilling((s) => s.view);
+  const loadBilling = useBilling((s) => s.load);
+  useEffect(() => {
+    loadBilling();
+  }, [loadBilling, loc]);
   const [editing, setEditing] = useState(false);
 
   return (
@@ -43,6 +49,20 @@ export function Sidebar() {
           <BarChart3 className="size-4 text-ink-3" />
           Insights
         </Link>
+        {billing?.enabled && (
+          <Link
+            href="/billing"
+            className={clsx(
+              "mt-1 flex h-8 items-center gap-2 rounded-lg px-2.5 text-[13px] text-ink-2 hover:bg-sunken",
+              loc === "/billing" && "bg-sunken font-medium text-ink",
+            )}
+          >
+            <CreditCard className="size-4 text-ink-3" />
+            Billing
+            {billing.required && !billing.active && <span className="ml-auto rounded-full bg-baton-soft px-1.5 text-[10.5px] font-medium text-baton">Free plan</span>}
+            {billing.status === "past_due" && <span className="ml-auto size-2 rounded-full bg-attn" title="Payment due" />}
+          </Link>
+        )}
       </div>
       <div className="px-4 pb-1.5 text-[11px] font-medium tracking-wide text-ink-4 uppercase">Sessions</div>
       <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">

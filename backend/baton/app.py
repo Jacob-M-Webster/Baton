@@ -19,7 +19,8 @@ from .access import COOKIE, AccessGate, Attempts, granted, token_for
 from .config import ROOT, Settings, load_settings
 from .hub import Conn
 from .sandbox import SAMPLE_REPOS, list_sample_repos, read_text_file
-from .sessions import CommandError, SessionManager
+from .billing import BillingError
+from .sessions import CommandError, PaymentRequired, SessionManager
 
 log = logging.getLogger("baton")
 WEB_DIST = ROOT / "web" / "dist"
@@ -27,6 +28,23 @@ WEB_DIST = ROOT / "web" / "dist"
 
 class AccessIn(BaseModel):
     code: str = Field(max_length=200)
+
+
+class SyncIn(BaseModel):
+    session_id: str = Field(min_length=1, max_length=300)
+
+
+async def stripe_call(coro):
+    """Turn Stripe API failures into a readable 400 instead of a 500."""
+    try:
+        return await coro
+    except BillingError:
+        raise
+    except Exception as e:  # noqa: BLE001 - stripe.StripeError and network errors
+        if type(e).__module__.startswith("stripe"):
+            msg = getattr(e, "user_message", None) or str(e)
+            raise BillingError(f"Stripe: {msg}") from e
+        raise
 
 
 class UserIn(BaseModel):
@@ -142,6 +160,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(CommandError)
     async def _cmd_err(_: Request, e: CommandError):
+        return JSONResponse({"error": str(e), "payment_required": isinstance(e, PaymentRequired)},
+                            status_code=402 if isinstance(e, PaymentRequired) else 400)
+
+    @app.exception_handler(BillingError)
+    async def _billing_err(_: Request, e: BillingError):
         return JSONResponse({"error": str(e)}, status_code=400)
 
     @app.exception_handler(PermissionError)
@@ -185,6 +208,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/repos")
     async def repos():
         return {"repos": list_sample_repos()}
+
+    # ---- billing (Stripe) ------------------------------------------------------
+    def base_url(request: Request) -> str:
+        return str(request.base_url).rstrip("/")  # https and the public host when behind Caddy
+
+    @app.get("/api/billing")
+    async def billing(request: Request):
+        return mgr(request).billing.view()
+
+    @app.post("/api/billing/checkout")
+    async def billing_checkout(request: Request):
+        return {"url": await stripe_call(mgr(request).billing.checkout(base_url(request)))}
+
+    @app.post("/api/billing/portal")
+    async def billing_portal(request: Request):
+        return {"url": await stripe_call(mgr(request).billing.portal(base_url(request)))}
+
+    @app.post("/api/billing/sync")
+    async def billing_sync(body: SyncIn, request: Request):
+        await stripe_call(mgr(request).billing.sync_checkout(body.session_id))
+        return mgr(request).billing.view()
+
+    @app.post("/api/billing/webhook")
+    async def billing_webhook(request: Request, stripe_signature: str | None = Header(None)):
+        kind = await stripe_call(mgr(request).billing.webhook(await request.body(), stripe_signature))
+        return {"received": kind}
 
     # ---- users -----------------------------------------------------------------
     @app.post("/api/users")

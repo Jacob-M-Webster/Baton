@@ -5,6 +5,7 @@ import clsx from "clsx";
 import { ArrowLeft, ArrowRight, Check, Cpu, Eye, GitFork, Lightbulb, MessageSquare, Radio, RotateCcw, Sparkles } from "lucide-react";
 import { api } from "../lib/api";
 import { useAccess } from "../lib/access";
+import { price, useBilling } from "../lib/billing";
 import { Logo, BatonMark } from "../components/Logo";
 import { Avatar, AgentAvatar } from "../components/Avatar";
 
@@ -73,6 +74,16 @@ function LogDiagram() {
       </div>
     </div>
   );
+}
+
+/** The live plan price from Stripe settings, so the slide matches what Checkout charges. */
+function TeamPrice() {
+  const view = useBilling((st) => st.view);
+  const load = useBilling((st) => st.load);
+  useEffect(() => {
+    load();
+  }, [load]);
+  return <>{view ? `${price(view.plan)}, flat, billed monthly` : "Flat monthly subscription"}</>;
 }
 
 function Join() {
@@ -218,16 +229,16 @@ const SLIDES: (() => ReactNode)[] = [
     </Slide>
   ),
   () => (
-    <Slide eyebrow="Business model" title="Seats for collaborators. Bring your own model.">
+    <Slide eyebrow="Business model" title="One flat monthly price per team.">
       <div className="grid grid-cols-3 gap-6">
         {[
-          ["Free", "Individuals", ["Unlimited solo sessions", "Up to 3 collaborators", "Any model, your keys"]],
-          ["Team", "Per collaborator seat", ["Shared workspaces and history", "Slack hand-offs and decision alerts", "Session analytics"]],
+          ["Free", "Forever", ["The offline demo agent", "Join, watch and comment on any session", "Requests from phones, no account"]],
+          ["Team", <TeamPrice key="p" />, ["Every model: Claude, Gemini, OpenAI, local", "Unlimited sessions and collaborators", "Code view, forks, insights, audit export"]],
           ["Enterprise", "Annual contract", ["SSO, roles, audit log export", "Self-hosted runners and sandboxes", "Retention and data controls"]],
         ].map(([name, unit, items]) => (
           <div key={name as string} className={clsx("rounded-2xl border bg-panel p-6", name === "Team" ? "border-ink" : "border-line")}>
-            <div className="text-[20px] font-semibold">{name}</div>
-            <div className="mt-1 text-[14px] text-ink-4">{unit}</div>
+            <div className="text-[20px] font-semibold">{name as string}</div>
+            <div className="mt-1 text-[14px] text-ink-4">{unit as ReactNode}</div>
             <ul className="mt-5 space-y-2.5">
               {(items as string[]).map((i) => (
                 <li key={i} className="flex gap-2.5 text-[15px] text-ink-2">
@@ -238,7 +249,7 @@ const SLIDES: (() => ReactNode)[] = [
           </div>
         ))}
       </div>
-      <p className="mt-8 text-[16px] text-ink-3">We don't resell tokens, so our margins don't depend on any model provider's pricing.</p>
+      <p className="mt-8 text-[16px] text-ink-3">Recurring revenue through Stripe subscriptions. We don't resell tokens, so our margins don't depend on any model provider's pricing.</p>
     </Slide>
   ),
   () => (
