@@ -4,8 +4,7 @@ You are an AI agent on a computer whose AWS CLI is already signed in. Your job: 
 branch of this repository on an AWS Lightsail server over HTTPS, verify it works, and report the URL back
 to the human. Everything you need is in this repository. Read this whole file before running anything.
 
-The general guide, for background, is [README.md](README.md) in this folder. Repo-wide rules for AI agents
-are in [/AGENTS.md](../../AGENTS.md); they apply to you too.
+The general guide, for background, is [README.md](README.md) in this folder.
 
 ## Ground rules
 

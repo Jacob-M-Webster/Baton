@@ -114,8 +114,7 @@ python scripts/e2e_demo.py --video rec           # also records both browsers in
 On Windows the venv's interpreter is `.venv\Scripts\python`. The e2e scripts need
 `python -m playwright install chromium` once. `e2e_demo.py`, `e2e_code.py` and `e2e_mobile.py` drive a
 server you started (`--url`; pass `--code` to `e2e_mobile.py` if it has an access code); the other two
-start their own. AI coding assistants working here should read
-[AGENTS.md](AGENTS.md).
+start their own.
 
 ## The 3-minute demo
 
