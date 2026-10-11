@@ -102,17 +102,20 @@ def build_messages(task: str, created_by: str, events: list[dict], names: dict[s
             flush()
             if open_calls:
                 close_open_calls()
-            for raw in p["blocks"]:
-                add("assistant", {"type": "thinking", "model": p.get("model", ""), "raw": raw})
+            if p.get("content"):
+                add("assistant", {"type": "native", "model": p.get("model", ""), "turn": p.get("turn"), "content": p["content"]})
+            else:
+                for raw in p["blocks"]:
+                    add("assistant", {"type": "thinking", "model": p.get("model", ""), "raw": raw})
         elif t == "agent.text":
             flush()
             if open_calls:
                 close_open_calls()
             if p.get("text", "").strip():
-                add("assistant", {"type": "text", "text": p["text"]})
+                add("assistant", {"type": "text", "text": p["text"], "turn": p.get("turn")})
         elif t == "tool.call":
             flush()
-            block = {"type": "tool_call", "id": p["call_id"], "name": p["name"], "input": p.get("input") or {}}
+            block = {"type": "tool_call", "id": p["call_id"], "name": p["name"], "input": p.get("input") or {}, "turn": p.get("turn")}
             if p.get("signature"):
                 block["signature"] = p["signature"]  # Gemini's thought signature, replayed to the same model
             add("assistant", block)

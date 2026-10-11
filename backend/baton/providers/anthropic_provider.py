@@ -29,11 +29,21 @@ class AnthropicProvider:
 
     @staticmethod
     def to_wire(messages: list[dict], model: str | None = None) -> list[dict]:
+        # Turns this model wrote with thinking go back exactly as it returned them: the API rejects
+        # signed thinking that has moved relative to the text and tool calls around it.
+        native = {b["turn"] for m in messages for b in m["content"]
+                  if b["type"] == "native" and model and b.get("model") == model and b.get("turn") is not None}
         out = []
         for m in messages:
             content = []
             for b in m["content"]:
-                if b["type"] == "thinking":
+                if b.get("turn") in native and b["type"] in ("text", "tool_call"):
+                    continue
+                if b["type"] == "native":
+                    if b.get("turn") in native:
+                        content += [{**raw, "id": safe_tool_id(raw["id"])} if raw.get("type") == "tool_use" else dict(raw)
+                                    for raw in b["content"]]
+                elif b["type"] == "thinking":
                     # Signed thinking must be returned verbatim during a tool loop, and only to the model that wrote it.
                     if model and b.get("model") == model:
                         content.append(dict(b["raw"]))
@@ -94,6 +104,7 @@ class AnthropicProvider:
         except anthropic.APIConnectionError as e:
             raise ProviderError(f"Could not reach the Anthropic API: {e}") from e
 
+        yield StreamEvent("content", data={"blocks": [b.model_dump(mode="json", exclude_none=True) for b in final.content]})
         for block in final.content:
             if block.type == "thinking":
                 yield StreamEvent("thinking_block", data={"type": "thinking", "thinking": block.thinking, "signature": block.signature})

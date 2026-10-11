@@ -8,6 +8,10 @@ Conversation format (what the runner builds from the event log):
           | {"type": "tool_call", "id": str, "name": str, "input": dict, "signature"?: {"model": str, "value": str}}
           | {"type": "tool_result", "id": str, "output": str, "is_error": bool}
           | {"type": "thinking", "model": str, "raw": dict}   # signed reasoning, replayed only to the same model
+          | {"type": "native", "model": str, "turn": int, "content": [dict]}   # a whole response, verbatim
+
+Text and tool_call blocks carry the "turn" they came from. An adapter that replays a native block
+for its own model skips that turn's text and tool_call blocks; every other adapter ignores it.
 
 Adapters translate this to their wire format and stream back StreamEvents.
 """
@@ -18,7 +22,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Literal, Protocol
 
-StreamKind = Literal["text_delta", "thinking_delta", "thinking_block", "tool_progress", "tool_call", "usage", "done"]
+StreamKind = Literal["text_delta", "thinking_delta", "thinking_block", "content", "tool_progress", "tool_call", "usage", "done"]
 
 
 @dataclass
