@@ -128,12 +128,7 @@ On Windows the venv's interpreter is `.venv\Scripts\python`. The e2e scripts nee
 server you started (`--url`; pass `--code` to `e2e_mobile.py` if it has an access code); the other two
 start their own.
 
-## The 3-minute demo
-
-Full runbook with timings, fallbacks and Q&A prep: [docs/DEMO.md](docs/DEMO.md). The pitch deck
-lives in the app at `/pitch` and ends on a QR code that opens the live demo. A recording of the
-whole flow, Alice's screen on the left and Bob's on the right, is in
-[docs/baton-demo.mp4](docs/baton-demo.mp4) (offline demo model, recorded by the browser test).
+## Example Workflow
 
 Two laptops, Alice and Bob. Model: whichever is configured (Offline demo works without network).
 
@@ -170,7 +165,7 @@ Two laptops, Alice and Bob. Model: whichever is configured (Offline demo works w
 
 ## Hosting it
 
-`deploy/lightsail/` has everything to run Baton on AWS Lightsail: one small server with HTTPS (Caddy, with a
+`deploy/lightsail/` runs Baton on AWS Lightsail: one small server with HTTPS (Caddy, with a
 free `<ip>.sslip.io` certificate, so no domain needed), Baton behind it as a systemd service, and sessions
 kept across deploys and restarts. With the AWS CLI signed in, from Git Bash or any Unix shell:
 
@@ -178,11 +173,6 @@ kept across deploys and restarts. With the AWS CLI signed in, from Git Bash or a
 ./deploy/lightsail/launch.sh     # key pair, instance, static IP, firewall, then the first deploy
 ./deploy/lightsail/deploy.sh     # later: ship your working copy and restart
 ```
-
-Hosted Baton requires a shared **access code** (`BATON_ACCESS_CODE`). Entering it once sets a cookie, and
-links from **Share** include it, so a judge scanning the QR code lands straight in the session. Locally
-there's no code unless you set one. Full guide, costs and security notes:
-[deploy/lightsail/README.md](deploy/lightsail/README.md).
 
 ## Billing (Stripe)
 
@@ -328,9 +318,7 @@ API keys live only on the server; no user credentials reach the agent. Identity 
 in the plan's hackathon scope: it attributes actions but is not a security boundary. Run Baton on a
 network you trust, or set `BATON_ACCESS_CODE` (the Lightsail deploy always does) so the API needs a shared
 code; production would put SSO in front of it. External agents authenticate
-with a per-session ingest token. The open product question
-for production is whose credentials a shared agent should use: a per-session service identity,
-the driver's delegated credentials, or org-level bring-your-own-key.
+with a per-session ingest token.
 
 ## Where this goes
 
