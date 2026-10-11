@@ -19,7 +19,15 @@ if (-not (Test-Path $python)) {
     Write-Host "Creating virtualenv with $found..."
     & $found -m venv .venv
     & $python -m pip install -q --upgrade pip
+}
+
+# Reinstall whenever requirements.txt changes, so an older venv picks up newly added SDKs.
+$stamp = ".venv\requirements.installed"
+if (-not (Test-Path $stamp) -or (Get-Content requirements.txt -Raw) -ne (Get-Content $stamp -Raw)) {
+    Write-Host "Installing Python dependencies..."
     & $python -m pip install -q -r requirements.txt
+    if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
+    Copy-Item requirements.txt $stamp
 }
 
 if (-not (Test-Path "web\dist\index.html") -or $env:REBUILD -eq "1") {

@@ -57,7 +57,11 @@ class LazyModule:
         self._name = name
 
     def __getattr__(self, attr: str):
-        return getattr(importlib.import_module(self._name), attr)
+        try:
+            module = importlib.import_module(self._name)
+        except ImportError as e:
+            raise ProviderError(f"The {self._name} SDK is not installed; run: pip install -r requirements.txt") from e
+        return getattr(module, attr)
 
 
 class ToolProgress:

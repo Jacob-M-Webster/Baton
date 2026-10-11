@@ -190,10 +190,24 @@ function StartItem({ ev, ctx }: { ev: BatonEvent; ctx: Ctx }) {
         <div className="text-[11px] font-medium tracking-wide text-ink-4 uppercase">Task</div>
         <p className="mt-1 text-[15px] leading-relaxed text-ink">{ev.payload.task}</p>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink-3">
-          {ev.payload.repo && (
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-line bg-sunken px-2 py-0.5 font-mono text-[11.5px]">
+          {ev.payload.github ? (
+            <a
+              href={`${ev.payload.github.url}/tree/${ev.payload.github.sha}`}
+              target="_blank"
+              rel="noreferrer"
+              title={`Cloned from ${ev.payload.github.url}${ev.payload.github.ref ? ` (${ev.payload.github.ref})` : ""}`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-line bg-sunken px-2 py-0.5 font-mono text-[11.5px] hover:text-ink"
+            >
               <FolderTree className="size-3" /> {ev.payload.repo}
-            </span>
+              {ev.payload.github.ref && <span className="text-ink-4">{ev.payload.github.ref}</span>}
+              <span className="text-ink-4">@{String(ev.payload.github.sha).slice(0, 7)}</span>
+            </a>
+          ) : (
+            ev.payload.repo && (
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-line bg-sunken px-2 py-0.5 font-mono text-[11.5px]">
+                <FolderTree className="size-3" /> {ev.payload.repo}
+              </span>
+            )
           )}
           <span className="inline-flex items-center gap-1.5 rounded-md border border-line bg-sunken px-2 py-0.5">
             <Cpu className="size-3" /> {ev.payload.provider === "external" ? `External agent: ${ev.payload.model}` : modelLabel(ev.payload.model)}

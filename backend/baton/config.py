@@ -56,6 +56,8 @@ class Settings:
     slack_webhook: str | None
     providers: list[ProviderConfig] = field(default_factory=list)
     access_code: str | None = None  # when set, the API needs this shared code (see access.py)
+    github_token: str | None = None  # lets sessions clone private GitHub repositories
+    admin_code: str | None = None  # unlocks changing API keys from the Settings page (see keys.py)
 
     def provider(self, pid: str) -> ProviderConfig | None:
         return next((p for p in self.providers if p.id == pid), None)
@@ -149,6 +151,8 @@ def load_settings(**overrides) -> Settings:
         keep_recent_turns=int(os.environ.get("BATON_KEEP_RECENT_TURNS", "6")),
         slack_webhook=os.environ.get("SLACK_WEBHOOK_URL") or None,
         access_code=os.environ.get("BATON_ACCESS_CODE", "").strip() or None,
+        github_token=os.environ.get("GITHUB_TOKEN", "").strip() or None,
+        admin_code=os.environ.get("BATON_ADMIN_CODE", "").strip() or None,
         providers=providers,
     )
     for k, v in overrides.items():

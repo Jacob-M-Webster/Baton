@@ -38,6 +38,13 @@ subscribes to, with roles, hand-offs and a memory of who changed what.
 - **Bring your own agent.** External agents stream into a session and take steering back over a
   small HTTP API.
 - **Durable.** SQLite WAL log; kill the server mid-run and sessions resume on restart.
+- **Any GitHub repository.** Pick *GitHub repository…* under Repo and paste `owner/name` or a github.com
+  URL (optionally a branch). The server shallow-clones it once per commit; forks start from the same commit.
+  Private repositories need a GitHub token. Delete old sessions from the sidebar or the home page (the person
+  who started a session can delete it; forks of it are kept).
+- **Keys in the browser.** The **Settings** page (gear icon) sets the Anthropic, OpenAI and Gemini keys and the
+  GitHub token without a restart. Keys are write-only there and saved in `data/keys.json`. On a hosted server
+  (one with an access code), changing them needs `BATON_ADMIN_CODE`.
 - **Judges on their phones.** Share a link or QR code and anyone joins from a phone: a live status
   strip, one-tap quick prompts, and requests the driver sends to the agent with one tap (the person who
   asked hears when it lands). The driver can **open the floor** so everyone steers the agent directly,
