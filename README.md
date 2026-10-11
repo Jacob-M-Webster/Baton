@@ -311,7 +311,7 @@ sample-repos/        starter repos for new sessions (`demo` is empty; agents bui
 scripts/             browser-driven rehearsals of the demo
 ```
 
-## Security notes (hackathon scope)
+## Security notes
 
 With `BATON_SANDBOX=local` (the default) agent commands, and the driver's terminal commands, run as a
 subprocess in the session's workspace with a scrubbed environment. That's fine for a demo on your own
