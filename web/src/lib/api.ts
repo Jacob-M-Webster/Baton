@@ -1,4 +1,6 @@
-import type { CatchUp, Comment, FileContent, ProviderInfo, Session, SessionSummary, User, Participant, WorkspaceFile } from "./types";
+import type {
+  CatchUp, Comment, FileContent, KeySettings, ProviderInfo, Session, SessionSummary, User, Participant, WorkspaceFile,
+} from "./types";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(path, {
@@ -26,8 +28,21 @@ export const api = {
   repos: () => req<{ repos: { id: string; description: string }[] }>("/api/repos"),
   upsertUser: (u: User) => req<User>("/api/users", { method: "POST", body: JSON.stringify(u) }),
   sessions: () => req<{ sessions: SessionSummary[] }>("/api/sessions"),
-  createSession: (body: { user_id: string; task: string; provider: string; model: string; repo: string; title?: string }) =>
-    req<Session & { participants: Participant[] }>("/api/sessions", { method: "POST", body: JSON.stringify(body) }),
+  createSession: (body: {
+    user_id: string;
+    task: string;
+    provider: string;
+    model: string;
+    repo: string;
+    github?: string; // owner/name or a github.com URL; the server clones it
+    ref?: string;
+    title?: string;
+  }) => req<Session & { participants: Participant[] }>("/api/sessions", { method: "POST", body: JSON.stringify(body) }),
+  deleteSession: (id: string, userId: string) =>
+    req<{ ok: true }>(`/api/sessions/${id}?user_id=${encodeURIComponent(userId)}`, { method: "DELETE" }),
+  settings: () => req<KeySettings>("/api/settings"),
+  saveKeys: (values: Record<string, string | null>, adminCode?: string) =>
+    req<KeySettings>("/api/settings", { method: "PUT", body: JSON.stringify({ values, admin_code: adminCode || null }) }),
   session: (id: string, userId?: string) =>
     req<{ session: Session & { participants: Participant[] }; catchup: CatchUp; comments: Comment[] }>(
       `/api/sessions/${id}${userId ? `?user_id=${encodeURIComponent(userId)}` : ""}`,

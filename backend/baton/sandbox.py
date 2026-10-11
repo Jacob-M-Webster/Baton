@@ -14,6 +14,7 @@ import os
 import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -180,6 +181,31 @@ def write_text_file(p: Path, content: str) -> None:
     p.write_text(content, encoding="utf-8", newline="")
 
 
+def read_original(base: Path, path: str) -> str | None:
+    """A file as it was in the repository the session started from, or None. Never reads outside `base`."""
+    root = base.resolve()
+    p = (root / path).resolve()
+    if not p.is_relative_to(root) or not p.is_file():
+        return None
+    return read_text_file(p)
+
+
+def rmtree(path: Path) -> None:
+    """shutil.rmtree that also removes read-only files (git's pack files on Windows)."""
+
+    def force(func, p, *_):
+        try:
+            os.chmod(p, stat.S_IWRITE)
+            func(p)
+        except OSError:
+            pass
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=force)
+    else:
+        shutil.rmtree(path, onerror=force)
+
+
 def content_hash(text: str | None) -> str:
     """A short fingerprint of a file's text, so an editor can tell when it changed underneath it."""
     return "" if text is None else hashlib.sha1(text.encode("utf-8", "replace")).hexdigest()[:16]
@@ -204,9 +230,17 @@ class Workspace:
         src = (SAMPLE_REPOS / repo).resolve()
         if src.parent != SAMPLE_REPOS.resolve() or not src.is_dir():
             raise ToolError(f"unknown sample repo: {repo}")
+        return cls.create_from(root, src, **kw)
+
+    @classmethod
+    def create_from(cls, root: Path, src: Path, **kw) -> "Workspace":
+        """A fresh workspace copied from `src` (a sample repo, or a clone of a GitHub repository)."""
+        if not src.is_dir():
+            raise ToolError(f"the repository this session started from is missing: {src.name}")
         if root.exists():
-            shutil.rmtree(root)
-        shutil.copytree(src, root, ignore=shutil.ignore_patterns(*SKIP_DIRS))
+            rmtree(root)
+        # Keep symlinks as links: a cloned repo's link to ~/.ssh must not be copied in as a file.
+        shutil.copytree(src, root, symlinks=True, ignore=shutil.ignore_patterns(*SKIP_DIRS))
         return cls(root, **kw)
 
     # ---- paths ----------------------------------------------------------
@@ -228,9 +262,9 @@ class Workspace:
         for dirpath, dirnames, filenames in os.walk(base):
             dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
             for f in sorted(filenames):
-                if f.endswith(".pyc"):
-                    continue
                 fp = Path(dirpath) / f
+                if f.endswith(".pyc") or fp.is_symlink():
+                    continue
                 lines.append(f"{self.rel(fp)}  ({fp.stat().st_size} B)")
             if len(lines) > 400:
                 lines.append("… (truncated)")
@@ -322,7 +356,7 @@ class Workspace:
             dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
             for f in filenames:
                 fp = Path(dirpath) / f
-                if f.endswith(".pyc") or fp.stat().st_size > 200_000:
+                if f.endswith(".pyc") or fp.is_symlink() or fp.stat().st_size > 200_000:
                     continue
                 files[fp.relative_to(self.root).as_posix()] = read_text_file(fp)
         return files
