@@ -31,7 +31,7 @@ export function useCatchUp(sid: string, me: string, headSeq: number) {
 function Section({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
     <div className={className}>
-      <div className="mb-1.5 text-[11px] font-medium tracking-wide text-ink-4 uppercase">{label}</div>
+      <div className="mb-1.5 text-[11.5px] font-semibold text-ink-3">{label}</div>
       {children}
     </div>
   );

@@ -20,3 +20,6 @@ deploy/lightsail/server.env
 deploy/lightsail/.ssh/
 deploy/lightsail/.state
 deploy/lightsail/backup-*.tgz
+
+# Screenshots and recordings from the rehearsal scripts (their default --out)
+shots/

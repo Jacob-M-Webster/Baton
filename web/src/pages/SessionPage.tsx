@@ -335,7 +335,7 @@ export function SessionPage({ id }: { id: string }) {
             {!live && (
               <div className="flex items-center gap-2 border-b border-attn/30 bg-attn-soft px-4 py-1.5 text-xs text-ink-2">
                 <History className="size-3.5 text-attn" />
-                Viewing the session as it was at step #{viewSeq}. New activity keeps arriving in the background.
+                Viewing step #{viewSeq}. Live activity continues in the background.
               </div>
             )}
             <div
@@ -353,9 +353,9 @@ export function SessionPage({ id }: { id: string }) {
                   {items.map((it, i) => (
                     <Fragment key={`${it.kind}-${it.seq}`}>
                       {newSince !== null && it.seq > newSince && (i === 0 || items[i - 1].seq <= newSince) && (
-                        <div className="flex items-center gap-3 py-1 text-[11px] font-medium tracking-wide text-baton uppercase">
+                        <div className="flex items-center gap-3 py-1 text-[11.5px] font-medium text-baton">
                           <span className="h-px flex-1 bg-baton/40" />
-                          New since you were last here
+                          New since your last visit
                           <span className="h-px flex-1 bg-baton/40" />
                         </div>
                       )}

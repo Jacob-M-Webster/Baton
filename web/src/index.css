@@ -29,6 +29,13 @@
   --color-add: var(--add);
   --color-del: var(--del);
 
+  /* Editor-tight corners: chrome is crisp, only overlays round a little more. */
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 5px;
+  --radius-xl: 7px;
+  --radius-2xl: 9px;
+
   --animate-pulse-dot: pulse-dot 1.8s ease-out infinite;
   --animate-caret: caret 1s steps(1) infinite;
   --animate-shimmer: shimmer 1.6s linear infinite;
@@ -53,16 +60,16 @@
 }
 
 :root {
-  --canvas: #f7f7f5;
+  --canvas: #f7f7f8;
   --panel: #ffffff;
   --raised: #ffffff;
-  --sunken: #f1f1ee;
-  --line: #e6e5e1;
-  --line-strong: #d4d3ce;
-  --ink: #17171a;
-  --ink-2: #3f3f46;
-  --ink-3: #6b6b73;
-  --ink-4: #8a8a92;
+  --sunken: #f0f0f2;
+  --line: #e3e3e7;
+  --line-strong: #cfcfd6;
+  --ink: #18181c;
+  --ink-2: #3c3c44;
+  --ink-3: #686872;
+  --ink-4: #8b8b95;
   --baton-soft: #fdebe3;
   --attn-soft: #fdf3dc;
   --danger-soft: #fde8ea;
@@ -82,17 +89,18 @@
 }
 
 .dark {
-  --canvas: #0d0d0f;
-  --panel: #131316;
-  --raised: #18181c;
-  --sunken: #0f0f12;
-  --line: #24242a;
-  --line-strong: #32323a;
-  --ink: #ececef;
-  --ink-2: #c5c5cc;
-  --ink-3: #8d8d96;
-  --ink-4: #73737d;
-  --baton-soft: #2a1710;
+  /* Graphite, a touch cooler than an editor's neutral grey. */
+  --canvas: #15161a;
+  --panel: #1b1c21;
+  --raised: #212228;
+  --sunken: #111216;
+  --line: #2a2b32;
+  --line-strong: #383944;
+  --ink: #e6e6ea;
+  --ink-2: #c3c3cb;
+  --ink-3: #8f8f9a;
+  --ink-4: #72727d;
+  --baton-soft: #2c1910;
   --attn-soft: #271f0c;
   --danger-soft: #2a1215;
   --add: #0f2617;
@@ -126,6 +134,26 @@ body {
 
 ::selection {
   background: color-mix(in srgb, #f15a24 22%, transparent);
+}
+
+:focus-visible {
+  outline: 1px solid var(--color-baton);
+  outline-offset: 1px;
+}
+/* Text fields show focus on their own border. */
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .tnum {

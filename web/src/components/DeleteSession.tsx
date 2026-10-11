@@ -86,7 +86,7 @@ function ConfirmDelete({ session, me, onClose }: { session: { id: string; title:
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-title"
-        className="animate-rise w-full max-w-sm rounded-2xl border border-line bg-raised p-6 text-left shadow-[0_24px_64px_-24px_rgb(0_0_0/0.45)]"
+        className="animate-rise w-full max-w-sm rounded-2xl border border-line bg-raised p-6 text-left shadow-[0_16px_48px_-12px_rgb(0_0_0/0.4)]"
       >
         <h2 id="delete-title" className="text-lg font-semibold tracking-tight text-ink">
           Delete this session?
