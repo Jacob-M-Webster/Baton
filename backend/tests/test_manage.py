@@ -35,7 +35,7 @@ def test_parse_github_accepts_what_people_paste(text, owner, name, ref):
 
 
 @pytest.mark.parametrize("text,ref", [
-    ("notes-api", None), ("https://gitlab.com/a/b", None), ("octo/..", None), ("a/b/c/d", None),
+    ("demo", None), ("https://gitlab.com/a/b", None), ("octo/..", None), ("a/b/c/d", None),
     ("octo/hello", "--upload-pack=evil"), ("octo/hello", "a..b"),
 ])
 def test_parse_github_rejects_anything_else(text, ref):

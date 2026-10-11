@@ -33,10 +33,10 @@ function Point({ icon, title, children }: { icon: ReactNode; title: string; chil
 
 function LogDiagram() {
   const rows = [
-    { seq: 14, who: "agent", text: "read_file app/middleware/legacy_throttle.py" },
-    { seq: 15, who: "Bob", color: "#db2777", text: "comment: “this middleware is deprecated”" },
-    { seq: 16, who: "Alice", color: "#2563eb", text: "steer (from Bob): don't build on LegacyThrottle" },
-    { seq: 17, who: "agent", text: "plan updated: write a new token-bucket middleware" },
+    { seq: 14, who: "agent", text: "plan: write a fixed-window rate limiter" },
+    { seq: 15, who: "Bob", color: "#db2777", text: "comment: “fixed windows burst at the boundary”" },
+    { seq: 16, who: "Alice", color: "#2563eb", text: "steer (from Bob): use a token bucket" },
+    { seq: 17, who: "agent", text: "plan updated: write a token-bucket rate limiter" },
     { seq: 18, who: "Alice", color: "#2563eb", text: "handed the baton to Bob" },
   ];
   return (

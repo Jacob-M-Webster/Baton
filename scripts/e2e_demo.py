@@ -71,7 +71,7 @@ def main() -> int:
         # 1. Alice starts a session.
         alice.goto(args.url)
         sign_in(alice, "Alice")
-        alice.get_by_placeholder("What should the agent do?").fill("Add rate limiting to this API and write tests.")
+        alice.get_by_placeholder("What should the agent do?").fill("Build a small notes API with rate limiting, and write tests.")
         expect(alice.get_by_role("button", name="Start session")).to_be_enabled()
         shot(alice, "home")
         alice.get_by_role("button", name="Start session").click()
@@ -84,7 +84,7 @@ def main() -> int:
         shot(alice, "alice-agent-exploring")
 
         # 2. Bob opens the link: the catch-up card shows the goal, steps so far and the plan.
-        alice.get_by_text("legacy_throttle.py").first.wait_for(timeout=30000)
+        alice.get_by_text("tests/test_notes.py").first.wait_for(timeout=30000)
         bob.goto(session_url)
         sign_in(bob, "Bob")
         bob.get_by_text("Catch up", exact=True).first.wait_for(timeout=10000)
@@ -92,21 +92,22 @@ def main() -> int:
         shot(bob, "bob-catch-up")
         bob.get_by_role("button", name="Jump in").click()
 
-        # 3. Bob scrubs back and comments on the tool call that read the legacy middleware.
+        # 3. Bob scrubs back and comments on the plan step that picked a fixed window.
         bob.locator("input.scrubber").focus()
         for _ in range(6):
             bob.keyboard.press("ArrowLeft")
         bob.wait_for_timeout(400)
         shot(bob, "bob-scrubbing")
         bob.get_by_role("button", name="Back to live").click()
-        row = bob.locator("[data-seq]").filter(has=bob.get_by_text("app/middleware/legacy_throttle.py")).first
+        row = bob.locator("[data-seq]").filter(has=bob.get_by_text("Write a fixed-window rate limiter")).first
         row.hover()
         row.get_by_role("button", name="Comment on this step").click()
         bob.get_by_placeholder("Comment on this step…").fill(
-            "Heads up: this middleware is deprecated (ADR 0007). It holds a global lock. Please don't build on it."
+            "Heads up: a fixed window lets a client send twice the limit across the boundary. Please use a token bucket."
         )
         bob.get_by_role("button", name="Comment", exact=True).click()
         bob.wait_for_timeout(500)
+        row.scroll_into_view_if_needed()  # the live feed may have moved on while Bob typed
         shot(bob, "bob-commented")
 
         # 4. Alice gets a notification, jumps to Bob's comment, and sends it to the agent.

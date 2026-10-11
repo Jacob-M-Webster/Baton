@@ -11,7 +11,7 @@ function ev(type: string, payload: Payload = {}, actor = "agent"): BatonEvent {
 function sessionLog() {
   seq = 0;
   return [
-    ev("session.started", { task: "Add rate limiting", repo: "notes-api", model: "baton-demo" }, "alice"),
+    ev("session.started", { task: "Add rate limiting", repo: "demo", model: "baton-demo" }, "alice"),
     ev("agent.text", { text: "Looking around.", turn: 1 }),
     ev("tool.call", { call_id: "c1", name: "read_file", input: { path: "app/server.py" }, turn: 1 }),
     ev("agent.turn", { turn: 1, model: "baton-demo", usage: { input_tokens: 100, output_tokens: 20 } }),

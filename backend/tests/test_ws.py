@@ -22,7 +22,7 @@ def test_two_clients_share_a_session(tmp_path):
     with TestClient(app) as client:
         client.post("/api/users", json={"id": "u_alice", "name": "Alice"})
         client.post("/api/users", json={"id": "u_bob", "name": "Bob"})
-        r = client.post("/api/sessions", json={"user_id": "u_alice", "task": "Add rate limiting to this API and write tests."})
+        r = client.post("/api/sessions", json={"user_id": "u_alice", "task": "Build a small notes API with rate limiting, and write tests."})
         assert r.status_code == 200, r.text
         sid = r.json()["id"]
 
@@ -56,8 +56,8 @@ def test_two_clients_share_a_session(tmp_path):
         assert detail["session"]["driver_id"] == "u_bob"
         assert detail["catchup"]["doing"].startswith("Finished")
         files = {f["path"]: f["state"] for f in client.get(f"/api/sessions/{sid}/files").json()["files"]}
-        assert files["app/middleware/rate_limit.py"] == "added"
-        assert files["app/server.py"] == "modified"
+        assert files["app/middleware.py"] == "added" and files["app/server.py"] == "added"
+        assert files["README.md"] == "same"
         listing = client.get("/api/sessions").json()["sessions"]
         assert listing[0]["progress"]["done"] == listing[0]["progress"]["total"] > 0
         assert listing[0]["needs_decision"] is False
@@ -68,7 +68,7 @@ def test_rejects_repo_path_traversal_and_bad_messages(tmp_path):
     app = create_app(load_settings(data_dir=tmp_path, demo_speed=200.0))
     with TestClient(app) as client:
         client.post("/api/users", json={"id": "u_alice", "name": "Alice"})
-        for repo in ("..", "../..", "notes-api/../../backend"):
+        for repo in ("..", "../..", "demo/../../backend"):
             r = client.post("/api/sessions", json={"user_id": "u_alice", "task": "x", "repo": repo})
             assert r.status_code == 400, repo
         sid = client.post("/api/sessions", json={"user_id": "u_alice", "task": "Add rate limiting"}).json()["id"]

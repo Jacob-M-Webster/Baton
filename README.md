@@ -21,7 +21,8 @@ subscribes to, with roles, hand-offs and a memory of who changed what.
 - **Live shared sessions.** Every token, tool call, diff and test run streams to everyone in the
   session over WebSockets; late joiners replay the log and land on the latest step.
 - **Catch-up cards** on join and on hand-off: the goal, what's done, what people changed, the open
-  question. Summarized by a cheap model when one is configured, built from the log otherwise.
+  question. Summarized by a cheap model when one is configured (at most one summary request per session
+  every two minutes), built from the log otherwise.
 - **Roles and the baton.** One driver steers, interrupts (Esc) and answers decision points.
   Collaborators suggest or comment on any step; the driver sends the good ones to the agent with
   both names attached. Hand off, ask for the baton, or take it from an absent driver.
@@ -51,6 +52,9 @@ subscribes to, with roles, hand-offs and a memory of who changed what.
   attributed, while the driver keeps decisions, interrupts and the baton.
 - **Hosted in one command.** `deploy/lightsail/launch.sh` puts Baton on an AWS Lightsail server with HTTPS,
   behind a shared access code that invite links and QR codes carry.
+- **Billing with Stripe** (optional): one flat monthly plan per workspace through Stripe Checkout and the
+  customer portal. With a Stripe key set, real models need the plan; the offline demo, watching and requests
+  stay free. See [Billing](#billing-stripe).
 - **Insights** across sessions: how and when people intervene, time to first intervention,
   per-model usage. **Audit export** of any session as JSON.
 
@@ -74,8 +78,10 @@ Open http://localhost:8000. The server prints a LAN address too; open it on a se
 scan the QR code in **Share**) to join as a second person. To rehearse alone, open a second
 browser profile, or add `?as=Bob` to the URL to give a tab its own identity.
 
-No API keys are needed to try it: the **Offline demo** model is a scripted agent that runs real
-tools against the bundled sample repo and reacts to what people say. Add keys to use real models:
+New sessions start in `sample-repos/demo`, an empty starter repository, or in any GitHub repository.
+No API keys are needed to try it: the **Offline demo** model is a scripted agent that knows one task
+(*"Build a small notes API with rate limiting, and write tests."*). It builds the API from scratch with
+real tools in the empty repo and reacts to what people say. Add keys to use real models:
 
 ```bash
 cp .env.example .env    # then fill in ANTHROPIC_API_KEY, GEMINI_API_KEY and/or OPENAI_API_KEY
@@ -125,35 +131,36 @@ whole flow, Alice's screen on the left and Bob's on the right, is in
 
 Two laptops, Alice and Bob. Model: whichever is configured (Offline demo works without network).
 
-1. **Alice starts a session**: "Add rate limiting to this API and write tests." The agent publishes
-   a plan and starts exploring `notes-api`. Every token and tool call streams live.
+1. **Alice starts a session** on the empty `demo` repo: "Build a small notes API with rate limiting,
+   and write tests." The agent publishes a plan (with a fixed-window rate limiter), writes the API and
+   its tests, and runs them (5 passing). Every token, tool call and file streams live.
 2. **Bob opens the link** on his laptop. A catch-up card tells him the goal, what's done, what's
    next, and that the agent is about to ask a question.
-3. **Bob drags the scrubber** back through the timeline, finds the step where the agent read
-   `legacy_throttle.py`, and comments: *"This middleware is deprecated (ADR 0007). Don't build on
-   it."* Bob isn't driving, so his note goes to Alice, not the agent.
+3. **Bob drags the scrubber** back through the timeline, finds the plan step *Write a fixed-window
+   rate limiter*, and comments: *"A fixed window lets a client send twice the limit across the
+   boundary. Use a token bucket."* Bob isn't driving, so his note goes to Alice, not the agent.
 4. **Alice sends Bob's comment to the agent.** The timeline shows the intervention attributed to
-   both of them. Once the decision is made, the agent rewrites its plan: a new token-bucket
-   middleware instead of extending the legacy one.
+   both of them. Once the decision is made, the agent rewrites its plan: a token bucket instead of a
+   fixed window.
 5. **Alice hands Bob the baton and leaves.** Bob gets a hand-off card with the open question,
-   picks "Per API key", and the agent writes the middleware and tests, runs the suite (11 passing)
-   and finishes.
+   picks "Per API key", and the agent writes the limiter, wires it in and adds tests, runs the suite
+   (11 passing) and finishes. If Bob's note arrives after the limiter is written, the agent reworks it.
 6. *(Optional)* **Kill the server mid-run** and restart it. Both browsers reconnect and the session
    picks up from the log, nothing lost.
 7. *(Optional)* **Switch models mid-session** from the header, e.g. start on a local model and hand
    the rest to Claude. The next turn rebuilds context from the shared log for the new model.
 8. *(Optional)* **Open the code view** (**Code** in the header). Follow the agent as it writes the
-   middleware, then fix a line by hand, save, and run the tests in the terminal. The agent's next
+   limiter, then fix a line by hand, save, and run the tests in the terminal. The agent's next
    message acknowledges the edit, and the timeline credits it to whoever made it.
 
 | | |
 |---|---|
-| ![Bob's comment on the step where the agent read the deprecated middleware](docs/screenshots/comment.png) | ![The hand-off card the new driver sees](docs/screenshots/handoff.png) |
+| ![Bob's comment on the plan step that picked a fixed-window limiter](docs/screenshots/comment.png) | ![The hand-off card the new driver sees](docs/screenshots/handoff.png) |
 | Bob comments on a step; Alice gets a notification and sends it to the agent. | Alice hands off; Bob gets the state of play and the open decision. |
 
 ![The finished session](docs/screenshots/done.png)
 
-![The code view: Alice follows the agent into server.py while Bob has the same file open](docs/screenshots/code.png)
+![The code view: Alice follows the agent into server.py while Bob has README.md open](docs/screenshots/code.png)
 
 ## Hosting it
 
@@ -295,7 +302,7 @@ Layout:
 backend/baton/       FastAPI app, event store, runner, context builder, sandbox, model adapters
 backend/tests/       pytest suite (fake Anthropic/OpenAI servers speak the real wire formats)
 web/                 React + Vite + Tailwind single-page app (code view: web/src/session/code/)
-sample-repos/        the small repos agents work on in demos
+sample-repos/        starter repos for new sessions (`demo` is empty; agents build in it)
 scripts/             browser-driven rehearsals of the demo
 ```
 

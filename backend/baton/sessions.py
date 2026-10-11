@@ -40,7 +40,6 @@ COLORS = ["#2563eb", "#db2777", "#059669", "#d97706", "#7c3aed", "#0891b2", "#dc
 ACTIVE = {"running"}
 MAX_AUTONOMOUS_TURNS = 60
 EXTERNAL = "external"  # provider id for sessions driven by an agent running elsewhere
-DEMO_REPO = "notes-api"  # the sample repo the offline demo model's rehearsed task is written for
 MAX_EDIT_CHARS = 400_000  # a hand edit is stored whole in the log so forks and audits can replay it
 MAX_COMMAND_CHARS = 2_000
 
@@ -168,8 +167,6 @@ class SessionManager:
         if not pconf:
             raise CommandError(f"Unknown provider: {provider}")
         self.require_plan(provider)
-        if pconf.kind == "scripted" and not github and (SAMPLE_REPOS / DEMO_REPO).is_dir():
-            repo = DEMO_REPO  # the offline demo model only knows its rehearsed task on this repo
         title = (title or "").strip() or ctx.clip(ctx.first_sentence(task), 72)
         config: dict = {"repo": repo}
         if github:

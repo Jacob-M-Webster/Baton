@@ -50,6 +50,7 @@ def main() -> int:
             browser = p.chromium.launch()
             page = browser.new_context(viewport={"width": 1440, "height": 900}).new_page()
             page.goto(url + "/?as=Alice")
+            page.get_by_placeholder("What should the agent do?").fill("Build a small notes API with rate limiting, and write tests.")
             page.get_by_role("button", name="Start session").click()
             page.wait_for_url("**/s/*")
             page.get_by_text("app/server.py").first.wait_for(timeout=20000)
@@ -66,7 +67,7 @@ def main() -> int:
             page.get_by_text("Decision needed").wait_for(timeout=40000)
             page.screenshot(path=str(out / "restart-2-resumed.png"))
             # No duplicated steps after the reconnect.
-            assert page.get_by_text("app/middleware/legacy_throttle.py").count() == 1
+            assert page.get_by_text("tests/test_notes.py").count() == 1
             print("OK: session resumed after a hard restart")
             browser.close()
     finally:

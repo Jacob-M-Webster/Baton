@@ -6,7 +6,7 @@ from baton.sandbox import Workspace, execute_tool
 
 @pytest.fixture
 def ws(tmp_path):
-    return Workspace.create(tmp_path / "w", "notes-api")
+    return Workspace.create(tmp_path / "w", "demo")
 
 
 @pytest.mark.parametrize("cmd", [
@@ -26,9 +26,10 @@ async def test_allows_ordinary_commands(ws, cmd):
 
 
 async def test_paths_use_forward_slashes_on_every_platform(ws):
+    await execute_tool(ws, "write_file", {"path": "app/middleware/limit.py", "content": "x = 1\n"})
     listing = ws.list_files()
-    assert "app/middleware/legacy_throttle.py" in listing
-    assert "app/middleware/legacy_throttle.py" in ws.snapshot()
+    assert "app/middleware/limit.py" in listing
+    assert "app/middleware/limit.py" in ws.snapshot()
 
 
 async def test_pipes_and_sequencing_work_like_a_posix_shell(ws):
@@ -40,5 +41,6 @@ async def test_paths_cannot_escape_the_repo(ws):
     for path in ("../outside.txt", "/etc/passwd", "app/../../x"):
         r = await execute_tool(ws, "write_file", {"path": path, "content": "x"})
         assert r["is_error"] and "escapes" in r["output"]
+    await execute_tool(ws, "write_file", {"path": "app/server.py", "content": "app = notes_app\n"})
     r = await execute_tool(ws, "edit_file", {"path": "app/server.py", "old_str": "app = notes_app\n", "new_str": "app = notes_app  # edited\n"})
-    assert not r["is_error"] and "+    app = notes_app  # edited" in r["diff"]
+    assert not r["is_error"] and "+app = notes_app  # edited" in r["diff"]

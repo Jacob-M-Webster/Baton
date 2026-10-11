@@ -111,6 +111,7 @@ def run(page, url: str, out: Path) -> None:
             page.goto(url + "/?as=Alice")
             page.get_by_title("Switch model").click()
             page.get_by_role("button", name="Offline demo").last.click()
+            page.get_by_placeholder("What should the agent do?").fill("Build a small notes API with rate limiting, and write tests.")
             page.get_by_role("button", name="Start session").click()
             page.wait_for_url("**/s/*")
 

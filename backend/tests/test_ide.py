@@ -6,7 +6,7 @@ from baton.sandbox import content_hash
 from baton.sessions import CommandError
 from conftest import wait_for
 
-TASK = "Add rate limiting to this API and write tests."
+TASK = "Build a small notes API with rate limiting, and write tests."
 README = "README.md"
 
 

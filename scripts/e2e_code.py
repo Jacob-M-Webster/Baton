@@ -73,7 +73,7 @@ def main() -> int:
         # Alice starts a session and waits for the agent's question, so files hold still for a moment.
         alice.goto(args.url)
         sign_in(alice, "Alice")
-        alice.get_by_placeholder("What should the agent do?").fill("Add rate limiting to this API and write tests.")
+        alice.get_by_placeholder("What should the agent do?").fill("Build a small notes API with rate limiting, and write tests.")
         alice.get_by_role("button", name="Start session").click()
         alice.wait_for_url("**/s/*")
         sid = alice.url.rstrip("/").split("/")[-1]
@@ -84,10 +84,12 @@ def main() -> int:
         # The code view: tree, editor, terminal, agent pane.
         alice.get_by_role("tab", name="Code").click()
         alice.locator(".cm-editor").wait_for(timeout=20000)
+        # Following opens the last file the agent wrote; let it land so it can't replace README.md below.
+        expect(alice.locator(".cm-content")).to_contain_text("class NotesTests", timeout=10000)
         alice.get_by_role("button", name="Following agent").click()  # stop following while she works
         alice.get_by_title("README.md").first.click()
         alice.locator(".cm-content").wait_for()
-        expect(alice.locator(".cm-content")).to_contain_text("Notes API")
+        expect(alice.locator(".cm-content")).to_contain_text("empty starter repository")
         shot(alice, "alice-code-view")
 
         # Bob joins and opens the code view too: read-only, and he can see which file Alice has open.
@@ -98,6 +100,9 @@ def main() -> int:
         bob.locator(".cm-editor").wait_for(timeout=20000)
         expect(bob.get_by_text("Read-only").first).to_be_visible()
         expect(bob.get_by_title("Alice has this open")).to_be_visible(timeout=10000)
+        expect(bob.locator(".cm-content")).to_contain_text("class NotesTests", timeout=10000)  # following the agent
+        bob.get_by_title("README.md").first.click()  # Bob opens the file Alice is about to edit
+        expect(bob.locator(".cm-content")).to_contain_text("empty starter repository")
         shot(bob, "bob-read-only-sees-alice")
 
         # Alice types at the end of README.md and saves with Ctrl+S.
@@ -130,7 +135,7 @@ def main() -> int:
         alice.get_by_role("button", name="Follow agent").click()
         alice.get_by_role("button", name="Per API key (X-API-Key), falling back to client IP").click()
         # The editor opens the middleware as the agent writes it.
-        expect(alice.get_by_role("button", name="rate_limit.py", exact=True)).to_be_visible(timeout=60000)
+        expect(alice.get_by_role("button", name="middleware.py", exact=True)).to_be_visible(timeout=60000)
         alice.wait_for_timeout(600)
         shot(alice, "alice-following-agent")
         alice.get_by_text("Task complete").first.wait_for(timeout=120000)

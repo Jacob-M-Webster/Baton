@@ -24,8 +24,6 @@ function remembered(): string {
   }
 }
 
-const DEMO_REPO = "notes-api"; // where the offline demo model's rehearsed task lives
-
 export function Home() {
   const { user } = useIdentity();
   const [, navigate] = useLocation();
@@ -35,10 +33,9 @@ export function Home() {
   const [repo, setRepo] = useState("demo");
   const [github, setGithub] = useState(remembered);
   const [branch, setBranch] = useState("");
+  const onGithub = repo === GITHUB;
   const [repos, setRepos] = useState<{ id: string; description: string }[]>([]);
   const [choice, setChoice] = useState<{ provider: string; model: string } | null>(null);
-  const demoLocked = choice?.provider === "demo" && repos.some((r) => r.id === DEMO_REPO);
-  const onGithub = repo === GITHUB && !demoLocked; // the offline demo can't run on a GitHub clone
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -79,7 +76,7 @@ export function Home() {
     if (!user || !choice || !ready) return;
     setBusy(true);
     try {
-      const where = onGithub ? { repo: "", github: github.trim(), ref: branch.trim() || undefined } : { repo: demoLocked ? DEMO_REPO : repo };
+      const where = onGithub ? { repo: "", github: github.trim(), ref: branch.trim() || undefined } : { repo };
       const s = await api.createSession({ user_id: user.id, task, ...where, ...choice });
       if (onGithub) {
         try {
@@ -114,18 +111,15 @@ export function Home() {
             className="block w-full resize-none rounded-t-xl bg-transparent px-4 pt-3.5 pb-2 text-base leading-relaxed outline-none placeholder:text-ink-4 sm:text-[14.5px]"
           />
           {choice?.provider === "demo" && (
-            <p className="px-4 pb-3 text-xs text-ink-4">The offline demo only runs its rehearsed task: rate limiting for notes-api.</p>
+            <p className="px-4 pb-3 text-xs text-ink-4">The offline demo only runs its rehearsed task: a small notes API with rate limiting, built from scratch.</p>
           )}
           <div className="flex flex-wrap items-center gap-2 border-t border-line px-2.5 py-2">
             <label className="inline-flex h-8 items-center gap-2 rounded-md border border-line bg-canvas pr-1 pl-2.5 text-[13px]">
               <span className="text-ink-4">Repo</span>
               <select
-                // The offline demo model always runs its rehearsed task on notes-api (the server enforces it too).
-                value={demoLocked ? DEMO_REPO : repo}
-                disabled={demoLocked}
-                title={demoLocked ? "The offline demo model runs on notes-api" : undefined}
+                value={repo}
                 onChange={(e) => setRepo(e.target.value)}
-                className="h-7 rounded-md bg-transparent font-mono text-[12.5px] text-ink outline-none disabled:opacity-100"
+                className="h-7 rounded-md bg-transparent font-mono text-[12.5px] text-ink outline-none"
               >
                 {(repos.length ? repos : [{ id: "demo", description: "" }]).map((r) => (
                   <option key={r.id} value={r.id}>

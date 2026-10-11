@@ -25,19 +25,19 @@ the second laptop. Total stage time: about 4 minutes (1 minute of slides, 3 minu
 | Time | Who | Do | Say |
 |---|---|---|---|
 | 0:00 | Alice | Slides 1–3 with arrow keys | "Agents are single-player. The work lives in one person's terminal; nobody else can see it, steer it, or pick it up when they log off. Baton makes an agent's work a shared, live object." |
-| 0:50 | Alice | Last slide, **Start the live demo**, then **Start session** with the prefilled task | "I'm asking an agent to add rate limiting to our API. It runs on the server, not on my laptop." |
-| 1:05 | Alice | Point at the plan and the streaming steps | "Everything it does is an event in a shared log: every token, every tool call." |
+| 0:50 | Alice | Last slide, **Start the live demo**, type *"Build a small notes API with rate limiting, and write tests."*, then **Start session** | "I'm asking an agent to build a small API with rate limiting, starting from an empty repo. It runs on the server, not on my laptop." |
+| 1:05 | Alice | Point at the plan and the files appearing | "Everything it does is an event in a shared log: every token, every tool call, every file it writes." |
 | 1:15 | Bob | Opens the session from the sidebar, or scans the QR in **Share** | "I'm joining late. Instead of scrolling a transcript, I get a catch-up card: the goal, what's done, and that it's about to ask us something." |
-| 1:35 | Bob | **Jump in**, drag the scrubber back, hover the `legacy_throttle.py` step, comment: *"This middleware is deprecated (ADR 0007). Don't build on it."* | "I know something the agent doesn't. I'm not driving, so my comment goes to Alice, not the agent. No two people shouting instructions at it." |
+| 1:35 | Bob | **Jump in**, drag the scrubber back, hover the plan step *Write a fixed-window rate limiter*, comment: *"A fixed window lets a client send twice the limit across the boundary. Use a token bucket."* | "I know something the agent glossed over. I'm not driving, so my comment goes to Alice, not the agent. No two people shouting instructions at it." |
 | 2:00 | Alice | Click **View and send to agent** on the toast, then **Send to agent** | "Bob's right. One click and it's an instruction, attributed to both of us." |
 | 2:15 | Alice | **Hand off**, pick Bob, close the laptop lid | "I have to run. I hand Bob the baton." |
 | 2:25 | Bob | Read the hand-off card, **Take it from here**, choose *Per API key* | "I get a summary of where things stand and the decision waiting for me. I make the call." |
-| 2:35 | Both | Watch the plan change and the tests run | "Notice it changed its plan because of Bob's note: a new middleware instead of the deprecated one. Eleven tests pass." |
+| 2:35 | Both | Watch the plan change and the tests run | "Notice it changed its plan because of Bob's note: a token bucket instead of a fixed window. Eleven tests pass." |
 | 2:55 | Bob | Optional: open **Files** to show the diff, or switch the model in the header | "Same log, any model: Claude, OpenAI or local weights. Switch mid-session and the next model picks up from the log." |
 | 3:10 | — | Back to the audience | "Baton is the collaboration layer for agents: seats for collaborators, bring your own model." |
 
 Optional code-view beat (adds 30 s, best after 2:35 while the agent is writing code): Bob clicks
-**Code** in the header. The editor follows the agent into `rate_limit.py` and `server.py`, and changed
+**Code** in the header. The editor follows the agent into `middleware.py` and `server.py`, and changed
 lines light up as they land. *"Same session, as an IDE. I can see what it's writing, line by line, and
 Alice's avatar shows she has this file open too."* As the driver, Bob edits a line, presses **Ctrl+S**,
 and runs `python -m unittest -q` in the terminal: *"My edit and my test run are in the log with my

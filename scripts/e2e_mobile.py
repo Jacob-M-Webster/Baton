@@ -66,13 +66,13 @@ def main() -> int:
 
         alice.goto(f"{args.url}/{q}")
         sign_in(alice, "Alice")
-        alice.get_by_placeholder("What should the agent do?").fill("Add rate limiting to this API and write tests.")
+        alice.get_by_placeholder("What should the agent do?").fill("Build a small notes API with rate limiting, and write tests.")
         alice.get_by_role("button", name="Start session").click()
         alice.wait_for_url("**/s/*")
         sid = alice.url.split("/s/")[1].split("?")[0]
         if not args.keep:
             atexit.register(delete_session, args.url, sid, {"X-Baton-Access": args.code} if args.code else {})
-        alice.get_by_text("legacy_throttle.py").first.wait_for(timeout=30000)
+        alice.get_by_text("tests/test_notes.py").first.wait_for(timeout=30000)
 
         # The judge scans the invite. The access code in the link is used once and dropped from the address bar.
         judge.goto(f"{args.url}/s/{sid}{q}")
