@@ -5,7 +5,6 @@ import clsx from "clsx";
 import { ArrowLeft, ArrowRight, Check, Cpu, Eye, GitFork, Lightbulb, MessageSquare, Radio, RotateCcw, Sparkles } from "lucide-react";
 import { api } from "../lib/api";
 import { useAccess } from "../lib/access";
-import { price, useBilling } from "../lib/billing";
 import { Logo, BatonMark } from "../components/Logo";
 import { Avatar, AgentAvatar } from "../components/Avatar";
 
@@ -74,16 +73,6 @@ function LogDiagram() {
       </div>
     </div>
   );
-}
-
-/** The live plan price from Stripe settings, so the slide matches what Checkout charges. */
-function TeamPrice() {
-  const view = useBilling((st) => st.view);
-  const load = useBilling((st) => st.load);
-  useEffect(() => {
-    load();
-  }, [load]);
-  return <>{view ? `${price(view.plan)}, flat, billed monthly` : "Flat monthly subscription"}</>;
 }
 
 function Join() {
@@ -230,12 +219,12 @@ const SLIDES: (() => ReactNode)[] = [
     </Slide>
   ),
   () => (
-    <Slide eyebrow="Business model" title="One flat monthly price per team.">
+    <Slide eyebrow="Business model" title="Priced per seat. Viewers are always free.">
       <div className="grid grid-cols-3 gap-6">
         {[
-          ["Free", "Forever", ["The offline demo agent", "Join, watch and comment on any session", "Requests from phones, no account"]],
-          ["Team", <TeamPrice key="p" />, ["Every model: Claude, Gemini, OpenAI, Grok, local", "Unlimited sessions and collaborators", "Code view, forks, insights, audit export"]],
-          ["Enterprise", "Annual contract", ["SSO, roles, audit log export", "Self-hosted runners and sandboxes", "Retention and data controls"]],
+          ["Free", "For individuals and side projects", ["1–2 active sessions", "Steer, interrupt, hand off; basic catch-up cards, comments, forks", "7-day log retention"]],
+          ["Team", "$25 per seat / month, monthly or annual", ["Unlimited sessions", "Full catch-up cards, comments, forks", "1-year log retention, Slack notifications"]],
+          ["Enterprise", "$50 per seat / month, annual contract, 50-seat minimum", ["Everything in Team, custom retention", "SSO and audit log export", "Self-host / VPC, custom agent adapters"]],
         ].map(([name, unit, items]) => (
           <div key={name as string} className={clsx("rounded-2xl border bg-panel p-6", name === "Team" ? "border-ink" : "border-line")}>
             <div className="text-[20px] font-semibold">{name as string}</div>
@@ -250,7 +239,10 @@ const SLIDES: (() => ReactNode)[] = [
           </div>
         ))}
       </div>
-      <p className="mt-8 text-[16px] text-ink-3">Recurring revenue through Stripe subscriptions. We don't resell tokens, so our margins don't depend on any model provider's pricing.</p>
+      <p className="mt-8 text-[16px] text-ink-3">
+        Customers bring their own LLM key, so our margins don't depend on any model provider's pricing. Example: 30 engineers driving agents in a
+        50-person org, on Team, is $750 a month, $9,000 a year.
+      </p>
     </Slide>
   ),
   () => (
