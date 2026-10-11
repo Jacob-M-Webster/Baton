@@ -775,6 +775,7 @@ class Runner:
         self.partial_text = ""
         self.partial_thinking = ""
         self.thinking_blocks: list[dict] = []
+        self.turn_content: list[dict] = []
         self.turn_model = ""
         self.autonomous_turns = 0
         self.checkpointing = False
@@ -852,6 +853,7 @@ class Runner:
         head_before = s["head_seq"]
         self.partial_text = self.partial_thinking = ""
         self.thinking_blocks = []
+        self.turn_content = []
         self.turn_model = s["model"]
         calls: list[dict] = []
         meta: dict = {}
@@ -872,6 +874,8 @@ class Runner:
                     mgr.hub.tool_progress(self.sid, turn, ev.data)
                 elif ev.kind == "thinking_block":
                     self.thinking_blocks.append(ev.data)
+                elif ev.kind == "content":
+                    self.turn_content = ev.data["blocks"]
                 elif ev.kind == "usage":
                     meta["usage"] = ev.data
                 elif ev.kind == "done":
@@ -987,9 +991,12 @@ class Runner:
         blocks = [] if interrupted else self.thinking_blocks
         if self.partial_thinking.strip() or blocks:
             text = self.partial_thinking or "\n\n".join(b.get("thinking", "") for b in blocks)
+            # The whole response in its original order, so signed thinking can go back to the model unchanged.
+            content = {"content": self.turn_content} if blocks and self.turn_content else {}
             self.mgr.append(self.sid, "agent", "agent.thinking",
-                            {"text": text, "turn": turn, "blocks": blocks, "model": self.turn_model})
+                            {"text": text, "turn": turn, "blocks": blocks, "model": self.turn_model, **content})
         self.thinking_blocks = []
+        self.turn_content = []
         if self.partial_text.strip() or interrupted:
             if self.partial_text.strip():
                 self.mgr.append(self.sid, "agent", "agent.text", {"text": self.partial_text, "turn": turn, "interrupted": interrupted})

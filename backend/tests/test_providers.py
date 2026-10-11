@@ -297,6 +297,55 @@ async def test_signed_thinking_round_trips_to_the_same_model_only(mgr):
     assert all(m.get("content") or m.get("tool_calls") for m in OpenAIProvider.to_wire("s", msgs) if m["role"] == "assistant")
 
 
+async def test_interleaved_thinking_replays_in_its_original_order(mgr):
+    """Thinking between tool calls must go back exactly where the model put it, or the API returns 400."""
+    def block(i, start, *deltas):
+        return [("content_block_start", {"type": "content_block_start", "index": i, "content_block": start}),
+                *[("content_block_delta", {"type": "content_block_delta", "index": i, "delta": d}) for d in deltas],
+                ("content_block_stop", {"type": "content_block_stop", "index": i})]
+
+    def interleaved():
+        ev = [("message_start", {"type": "message_start", "message": {"id": "m", "type": "message", "role": "assistant", "model": "x",
+                                 "content": [], "stop_reason": None, "stop_sequence": None, "usage": {"input_tokens": 5, "output_tokens": 1}}})]
+        ev += block(0, {"type": "thinking", "thinking": "", "signature": ""},
+                    {"type": "thinking_delta", "thinking": "List first."}, {"type": "signature_delta", "signature": "sig-1"})
+        ev += block(1, {"type": "text", "text": ""}, {"type": "text_delta", "text": "Looking around."})
+        ev += block(2, {"type": "tool_use", "id": "toolu_a", "name": "list_files", "input": {}},
+                    {"type": "input_json_delta", "partial_json": json.dumps({"path": "."})})
+        ev += block(3, {"type": "thinking", "thinking": "", "signature": ""},
+                    {"type": "thinking_delta", "thinking": "Then the app folder."}, {"type": "signature_delta", "signature": "sig-2"})
+        ev += block(4, {"type": "tool_use", "id": "toolu_b", "name": "list_files", "input": {}},
+                    {"type": "input_json_delta", "partial_json": json.dumps({"path": "app"})})
+        ev += [("message_delta", {"type": "message_delta", "delta": {"stop_reason": "tool_use", "stop_sequence": None}, "usage": {"output_tokens": 9}}),
+               ("message_stop", {"type": "message_stop"})]
+        return sse(ev)
+
+    class Thinker(FakeServer):
+        async def handle(self, request):
+            self.requests.append(await request.json())
+            if len(self.requests) == 1:
+                return interleaved()
+            return anthropic_turn("Done looking.", ("toolu_c", "finish", {"summary": "ok"}))
+
+    srv = Thinker("anthropic", [])
+    mgr.providers["anthropic"] = AnthropicProvider("anthropic", "sk-test", "http://fake", http_client=srv.client())
+    sid = mgr.create_session(user_id="u_alice", task="t", provider="anthropic", model="claude-opus-5-5")["id"]
+    await wait_for(lambda: mgr.db.get_session(sid)["status"] == "done", timeout=10)
+
+    assistant = [m for m in srv.requests[1]["messages"] if m["role"] == "assistant"][0]["content"]
+    assert [b["type"] for b in assistant] == ["thinking", "text", "tool_use", "thinking", "tool_use"]
+    assert assistant[3] == {"type": "thinking", "thinking": "Then the app folder.", "signature": "sig-2"}
+    assert [b["id"] for b in assistant if b["type"] == "tool_use"] == ["toolu_a", "toolu_b"]
+    results = [b["tool_use_id"] for m in srv.requests[1]["messages"] if m["role"] == "user"
+               for b in m["content"] if b["type"] == "tool_result"]
+    assert results == ["toolu_a", "toolu_b"]
+
+    # Another model gets the turn rebuilt from the log: text and both calls, no thinking.
+    msgs = ctx.build_messages("t", "u_alice", mgr.db.events(sid), mgr.names(sid))
+    other = [m for m in AnthropicProvider.to_wire(msgs, "claude-sonnet-5-5") if m["role"] == "assistant"][0]["content"]
+    assert [b["type"] for b in other] == ["text", "tool_use", "tool_use"]
+
+
 async def test_steer_during_a_tool_reaches_the_next_model_call(mgr):
     """Redirect: a steer sent mid-step is injected at the next turn boundary, after the tool result."""
     srv = FakeServer("openai", [
