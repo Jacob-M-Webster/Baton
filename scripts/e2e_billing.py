@@ -56,7 +56,7 @@ def main() -> int:
         expect(page.get_by_placeholder("Your name")).to_have_count(0)  # signed in and saved
 
         page.goto(f"{args.url}/billing")
-        expect(page.get_by_text("Not subscribed")).to_be_visible(timeout=10000)
+        expect(page.get_by_text("Current plan")).to_be_visible(timeout=10000)
         page.screenshot(path=str(out / "billing-1-before.png"))
         page.get_by_role("button", name="Subscribe to Team").click()
 
