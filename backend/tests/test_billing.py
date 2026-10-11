@@ -86,6 +86,7 @@ def signed(payload: dict, secret: str = WEBHOOK_SECRET) -> tuple[bytes, str]:
 @pytest.fixture
 def billing(tmp_path, mgr):
     mgr.settings.stripe_webhook_secret = WEBHOOK_SECRET
+    mgr.settings.billing_required = True
     mgr.billing = Billing(mgr.settings, mgr.db, client=FakeStripe())
     return mgr.billing
 
@@ -177,7 +178,7 @@ async def test_webhooks_are_verified_and_refetch_the_subscription(billing):
 
 def test_api_returns_402_and_lets_stripe_reach_the_webhook_past_the_access_code(tmp_path):
     settings = load_settings(data_dir=tmp_path, access_code="code-1", stripe_secret_key="sk_test_x",
-                             stripe_webhook_secret=WEBHOOK_SECRET)
+                             stripe_webhook_secret=WEBHOOK_SECRET, billing_required=True)
     with TestClient(create_app(settings)) as c:
         c.app.state.mgr.billing._client = FakeStripe()
         c.post("/api/access", json={"code": "code-1"})

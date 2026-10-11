@@ -212,7 +212,7 @@ the lookup key `baton_team_monthly`), and the customer portal gets a default con
   CLI does the same. Webhooks are signature-checked, and the subscription is always re-fetched from Stripe.
 
 Settings: `BATON_PLAN_PRICE_CENTS`, `BATON_PLAN_NAME`, `BATON_PLAN_CURRENCY`, `STRIPE_PRICE_ID` (use an
-existing price) and `BATON_BILLING_REQUIRED=0` (show billing without locking models). A failed renewal
+existing price) and `BATON_BILLING_REQUIRED=1` (lock real models behind the subscription; off by default for now). A failed renewal
 (`past_due`) keeps the team working while Stripe retries, with a warning on the Billing page.
 
 ## The code view
