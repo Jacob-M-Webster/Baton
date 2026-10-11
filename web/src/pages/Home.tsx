@@ -29,7 +29,7 @@ export function Home() {
   const providers = useModelCatalog();
   const { sessions } = useSessionList();
   const [task, setTask] = useState("");
-  const [repo, setRepo] = useState("notes-api");
+  const [repo, setRepo] = useState("demo");
   const [github, setGithub] = useState(remembered);
   const [branch, setBranch] = useState("");
   const onGithub = repo === GITHUB;
@@ -38,7 +38,14 @@ export function Home() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api.repos().then((r) => setRepos(r.repos)).catch(() => {});
+    api
+      .repos()
+      .then((r) => {
+        setRepos(r.repos);
+        // Keep the selection on a repo the server actually has.
+        setRepo((cur) => (cur === GITHUB || r.repos.some((x) => x.id === cur) ? cur : r.repos[0]?.id ?? cur));
+      })
+      .catch(() => {});
   }, []);
 
   // Default to the best configured model: Claude, then Gemini, then OpenAI, then local, then the offline demo.
@@ -105,7 +112,7 @@ export function Home() {
                 onChange={(e) => setRepo(e.target.value)}
                 className="h-7 rounded-md bg-transparent font-mono text-[12.5px] text-ink outline-none"
               >
-                {(repos.length ? repos : [{ id: "notes-api", description: "" }]).map((r) => (
+                {(repos.length ? repos : [{ id: "demo", description: "" }]).map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.id}
                   </option>

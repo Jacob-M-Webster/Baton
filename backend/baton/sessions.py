@@ -75,7 +75,7 @@ class SessionManager:
         gh = s["config"].get("github")
         if gh:
             return self.settings.data_dir / gh["path"]
-        return SAMPLE_REPOS / s["config"].get("repo", "notes-api")
+        return SAMPLE_REPOS / s["config"].get("repo", "demo")
 
     def names(self, session_id: str) -> dict[str, str]:
         ids = {p["user_id"] for p in self.db.participants(session_id)}
@@ -152,7 +152,7 @@ class SessionManager:
 
     # ---- lifecycle -------------------------------------------------------
     def create_session(self, *, user_id: str, task: str, provider: str, model: str,
-                       repo: str = "notes-api", title: str | None = None, github: dict | None = None) -> dict:
+                       repo: str = "demo", title: str | None = None, github: dict | None = None) -> dict:
         """Start a session on a sample repo, or on a GitHub clone (`github` is what `github.clone` returned)."""
         task = task.strip()
         if not task:

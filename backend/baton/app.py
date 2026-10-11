@@ -42,7 +42,7 @@ class SessionIn(BaseModel):
     title: str | None = None
     provider: str = "demo"
     model: str = "baton-demo"
-    repo: str = "notes-api"
+    repo: str = "demo"
     github: str | None = Field(default=None, max_length=300)  # owner/name or a github.com URL; wins over `repo`
     ref: str | None = Field(default=None, max_length=200)  # branch or tag; defaults to the repo's default branch
 
