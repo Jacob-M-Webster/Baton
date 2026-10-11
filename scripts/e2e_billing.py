@@ -58,7 +58,7 @@ def main() -> int:
         page.goto(f"{args.url}/billing")
         expect(page.get_by_text("Not subscribed")).to_be_visible(timeout=10000)
         page.screenshot(path=str(out / "billing-1-before.png"))
-        page.get_by_role("button", name="Subscribe").click()
+        page.get_by_role("button", name="Subscribe to Team").click()
 
         fill_checkout(page)
         page.wait_for_url(f"{args.url}/billing**", timeout=60000)

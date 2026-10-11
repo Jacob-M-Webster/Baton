@@ -57,8 +57,8 @@ subscribes to, with roles, hand-offs and a memory of who changed what.
   attributed, while the driver keeps decisions, interrupts and the baton.
 - **Hosted in one command.** `deploy/lightsail/launch.sh` puts Baton on an AWS Lightsail server with HTTPS,
   behind a shared access code that invite links and QR codes carry.
-- **Billing with Stripe** (optional): one flat monthly plan per workspace through Stripe Checkout and the
-  customer portal. With a Stripe key set, real models need the plan; the offline demo, watching and requests
+- **Billing with Stripe** (optional): per-seat Team and Enterprise plans through Stripe Checkout and the
+  customer portal. With a Stripe key set, real models need a plan; the offline demo, watching and requests
   stay free. See [Billing](#billing-stripe).
 - **Insights** across sessions: how and when people intervene, time to first intervention,
   per-model usage. **Audit export** of any session as JSON.
@@ -186,7 +186,7 @@ there's no code unless you set one. Full guide, costs and security notes:
 
 ## Billing (Stripe)
 
-Baton sells one flat monthly plan per workspace (**Baton Team, $29/month** by default) through Stripe.
+Baton sells per-seat plans per workspace (**Team** and **Enterprise**, below) through Stripe.
 Stripe hosts Checkout, where people subscribe, and the customer portal, where they change cards, see
 invoices and cancel; card details never touch Baton. While billing is on, Claude, Gemini, OpenAI and local
 models need an active subscription. The offline demo model, joining, watching and requesting stay free, so
@@ -199,8 +199,11 @@ Billing is off until you set a key:
 STRIPE_SECRET_KEY=sk_test_...
 ```
 
-The first **Subscribe** click creates the product and monthly price in your Stripe account (found again by
-the lookup key `baton_team_monthly`), and the customer portal gets a default configuration. Then:
+There are two paid plans, both per seat (viewers are always free): **Team**, $25 per seat per month, billed
+monthly, and **Enterprise**, $50 per seat per month, billed annually, with a 50-seat minimum. The first
+**Subscribe** click for a plan creates its product and price in your Stripe account (found again by the lookup
+keys `baton_team_seat_monthly` and `baton_enterprise_seat_yearly`), and the customer portal gets a default
+configuration. The seat count is chosen on the Billing page and can be adjusted on Stripe's Checkout page. Then:
 
 - **Pay with a test card:** on the **Billing** page (sidebar), click Subscribe and pay with `4242 4242 4242 4242`,
   any future expiry, any CVC. The page lists Stripe's other test cards (declines, 3D Secure). Coming back from
@@ -212,8 +215,8 @@ the lookup key `baton_team_monthly`), and the customer portal gets a default con
   in its settings. Locally, `stripe listen --forward-to localhost:8000/api/billing/webhook` with the Stripe
   CLI does the same. Webhooks are signature-checked, and the subscription is always re-fetched from Stripe.
 
-Settings: `BATON_PLAN_PRICE_CENTS`, `BATON_PLAN_NAME`, `BATON_PLAN_CURRENCY`, `STRIPE_PRICE_ID` (use an
-existing price) and `BATON_BILLING_REQUIRED=1` (lock real models behind the subscription; off by default for now). A failed renewal
+Settings: `BATON_TEAM_SEAT_CENTS` (2500), `BATON_ENTERPRISE_SEAT_CENTS` (5000, per month),
+`BATON_ENTERPRISE_MIN_SEATS` (50), `BATON_PLAN_CURRENCY` and `BATON_BILLING_REQUIRED=1` (lock real models behind the subscription; off by default for now). A failed renewal
 (`past_due`) keeps the team working while Stripe retries, with a warning on the Billing page.
 
 ## The code view

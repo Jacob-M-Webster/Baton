@@ -62,10 +62,10 @@ class Settings:
     # Billing (see billing.py). Off unless a Stripe key is set.
     stripe_secret_key: str | None = None
     stripe_webhook_secret: str | None = None
-    stripe_price_id: str | None = None  # use an existing price instead of creating one
     billing_required: bool = False  # off for now; set BATON_BILLING_REQUIRED=1 so real models need a subscription
-    plan_name: str = "Baton Team"
-    plan_price_cents: int = 2900
+    team_seat_cents: int = 2500  # Team: per seat per month, billed monthly
+    enterprise_seat_cents: int = 5000  # Enterprise: per seat per month, billed annually
+    enterprise_min_seats: int = 50
     plan_currency: str = "usd"
 
     def provider(self, pid: str) -> ProviderConfig | None:
@@ -176,10 +176,10 @@ def load_settings(**overrides) -> Settings:
         github_token=os.environ.get("GITHUB_TOKEN", "").strip() or None,
         stripe_secret_key=os.environ.get("STRIPE_SECRET_KEY", "").strip() or None,
         stripe_webhook_secret=os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip() or None,
-        stripe_price_id=os.environ.get("STRIPE_PRICE_ID", "").strip() or None,
         billing_required=os.environ.get("BATON_BILLING_REQUIRED", "0").strip().lower() in ("1", "true", "yes"),
-        plan_name=os.environ.get("BATON_PLAN_NAME", "Baton Team"),
-        plan_price_cents=int(os.environ.get("BATON_PLAN_PRICE_CENTS", "2900")),
+        team_seat_cents=int(os.environ.get("BATON_TEAM_SEAT_CENTS", "2500")),
+        enterprise_seat_cents=int(os.environ.get("BATON_ENTERPRISE_SEAT_CENTS", "5000")),
+        enterprise_min_seats=int(os.environ.get("BATON_ENTERPRISE_MIN_SEATS", "50")),
         plan_currency=os.environ.get("BATON_PLAN_CURRENCY", "usd").lower(),
         providers=providers,
     )

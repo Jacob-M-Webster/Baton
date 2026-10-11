@@ -1,10 +1,23 @@
 import { create } from "zustand";
 
+export type PlanId = "team" | "enterprise";
+
+export interface Plan {
+  id: PlanId;
+  name: string;
+  seat: number; // cents per seat per month
+  interval: "month" | "year"; // how often it's charged
+  min_seats: number;
+}
+
 export interface BillingView {
   enabled: boolean;
   required: boolean;
   test_mode: boolean;
-  plan: { name: string; amount: number; currency: string; interval: string };
+  currency: string;
+  plans: Plan[];
+  plan: PlanId | null; // the subscribed plan
+  seats: number | null;
   active: boolean;
   status: string | null;
   current_period_end: number | null;
@@ -34,13 +47,23 @@ export const useBilling = create<BillingState>((set) => ({
   },
 }));
 
-export function price(plan: BillingView["plan"]) {
-  const amount = new Intl.NumberFormat(undefined, {
+export function money(cents: number, currency = "usd") {
+  return new Intl.NumberFormat(undefined, {
     style: "currency",
-    currency: plan.currency.toUpperCase(),
-    minimumFractionDigits: plan.amount % 100 ? 2 : 0,
-  }).format(plan.amount / 100);
-  return `${amount}/${plan.interval === "month" ? "mo" : plan.interval}`;
+    currency: currency.toUpperCase(),
+    minimumFractionDigits: cents % 100 ? 2 : 0,
+  }).format(cents / 100);
+}
+
+/** "$25/seat/mo" */
+export function seatPrice(plan: Plan, currency = "usd") {
+  return `${money(plan.seat, currency)}/seat/mo`;
+}
+
+/** What `seats` seats cost per charge: "$750/mo" for Team, "$30,000/yr" for Enterprise. */
+export function total(plan: Plan, seats: number, currency = "usd") {
+  const year = plan.interval === "year";
+  return `${money(plan.seat * seats * (year ? 12 : 1), currency)}/${year ? "yr" : "mo"}`;
 }
 
 /** Paid models are locked when billing is required and the workspace has no active plan. */

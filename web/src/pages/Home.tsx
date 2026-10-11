@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { GitBranch, Lock } from "lucide-react";
 import { api } from "../lib/api";
-import { locked, price, useBilling } from "../lib/billing";
+import { locked, seatPrice, useBilling } from "../lib/billing";
 import { useIdentity } from "../lib/identity";
 import { refreshSessions, useSessionList } from "../lib/sessions";
 import { ago, modelLabel } from "../lib/format";
@@ -172,8 +172,8 @@ export function Home() {
           <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-baton/30 bg-baton-soft/60 px-4 py-2.5 text-[13px]">
             <Lock className="size-4 text-baton" />
             <span className="min-w-0 flex-1 text-ink-2">
-              {modelLabel(choice!.model)} is part of <span className="font-medium text-ink">{billing.plan.name}</span> ({price(billing.plan)}). The
-              offline demo model is free.
+              {modelLabel(choice!.model)} needs a <span className="font-medium text-ink">Team</span> plan
+              {billing.plans[0] ? ` (${seatPrice(billing.plans[0], billing.currency)})` : ""}. The offline demo model is free.
             </span>
             <Button size="sm" variant="baton" onClick={() => navigate("/billing")}>
               Subscribe

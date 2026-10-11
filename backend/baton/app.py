@@ -9,6 +9,7 @@ import socket
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
@@ -34,6 +35,11 @@ class AccessIn(BaseModel):
 
 class SyncIn(BaseModel):
     session_id: str = Field(min_length=1, max_length=300)
+
+
+class CheckoutIn(BaseModel):
+    plan: Literal["team", "enterprise"] = "team"
+    seats: int = Field(1, ge=1, le=10_000)
 
 
 async def stripe_call(coro):
@@ -240,8 +246,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return mgr(request).billing.view()
 
     @app.post("/api/billing/checkout")
-    async def billing_checkout(request: Request):
-        return {"url": await stripe_call(mgr(request).billing.checkout(base_url(request)))}
+    async def billing_checkout(request: Request, body: CheckoutIn | None = None):
+        body = body or CheckoutIn()
+        return {"url": await stripe_call(mgr(request).billing.checkout(base_url(request), body.plan, body.seats))}
 
     @app.post("/api/billing/portal")
     async def billing_portal(request: Request):

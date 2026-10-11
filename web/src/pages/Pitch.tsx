@@ -7,6 +7,7 @@ import { api } from "../lib/api";
 import { useAccess } from "../lib/access";
 import { Logo, BatonMark } from "../components/Logo";
 import { Avatar, AgentAvatar } from "../components/Avatar";
+import { PlanTable } from "../components/PlanTable";
 
 /* A short deck that lives inside the product, so the pitch flows straight into the live demo. */
 
@@ -220,26 +221,8 @@ const SLIDES: (() => ReactNode)[] = [
   ),
   () => (
     <Slide eyebrow="Business model" title="Priced per seat. Viewers are always free.">
-      <div className="grid grid-cols-3 gap-6">
-        {[
-          ["Free", "For individuals and side projects", ["1–2 active sessions", "Steer, interrupt, hand off; basic catch-up cards, comments, forks", "7-day log retention"]],
-          ["Team", "$25 per seat / month, monthly or annual", ["Unlimited sessions", "Full catch-up cards, comments, forks", "1-year log retention, Slack notifications"]],
-          ["Enterprise", "$50 per seat / month, annual contract, 50-seat minimum", ["Everything in Team, custom retention", "SSO and audit log export", "Self-host / VPC, custom agent adapters"]],
-        ].map(([name, unit, items]) => (
-          <div key={name as string} className={clsx("rounded-2xl border bg-panel p-6", name === "Team" ? "border-ink" : "border-line")}>
-            <div className="text-[20px] font-semibold">{name as string}</div>
-            <div className="mt-1 text-[14px] text-ink-4">{unit as ReactNode}</div>
-            <ul className="mt-5 space-y-2.5">
-              {(items as string[]).map((i) => (
-                <li key={i} className="flex gap-2.5 text-[15px] text-ink-2">
-                  <Check className="mt-1 size-4 shrink-0 text-ink-3" /> {i}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-      <p className="mt-8 text-[16px] text-ink-3">
+      <PlanTable dense />
+      <p className="mt-6 text-[16px] text-ink-3">
         Customers bring their own LLM key, so our margins don't depend on any model provider's pricing. Example: 30 engineers driving agents in a
         50-person org, on Team, is $750 a month, $9,000 a year.
       </p>

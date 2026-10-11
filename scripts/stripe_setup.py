@@ -1,6 +1,6 @@
 """Set up and check Stripe billing for Baton (test mode by default).
 
-    python scripts/stripe_setup.py plan                    # the product + monthly price, and the customer portal
+    python scripts/stripe_setup.py plan                    # the Team and Enterprise per-seat prices, and the customer portal
     python scripts/stripe_setup.py webhook https://HOST    # register HOST/api/billing/webhook, print its signing secret
     python scripts/stripe_setup.py renewal                 # prove it recurs: subscribe a test card, skip ahead a month
 
@@ -43,13 +43,13 @@ def billing_for(args) -> Billing:
     return Billing(settings, db=None)
 
 
-async def plan(b: Billing) -> str:
-    price = await b.price_id()
+async def plan(b: Billing) -> None:
+    for key, p in b.plans.items():
+        price = await b.price_id(key)
+        print(f"Plan ready: {p['name']}, {p['seat'] / 100:.2f} {b.settings.plan_currency.upper()} per seat per month, "
+              f"billed {'annually' if p['interval'] == 'year' else 'monthly'}, at least {p['min_seats']} seat(s) (price {price})")
     await b._ensure_portal()
-    s = b.settings
-    print(f"Plan ready: {s.plan_name}, {s.plan_price_cents / 100:.2f} {s.plan_currency.upper()}/month (price {price})")
     print("Customer portal configured.")
-    return price
 
 
 async def webhook(b: Billing, base: str) -> None:

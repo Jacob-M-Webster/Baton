@@ -1,4 +1,4 @@
-"""Stripe billing: a flat monthly plan per workspace, against a fake Stripe client (webhook signatures are real)."""
+"""Stripe billing: per-seat Team and Enterprise plans per workspace, against a fake Stripe client (webhook signatures are real)."""
 import hashlib
 import hmac
 import json
@@ -68,8 +68,8 @@ class FakeStripe:
         cs = self.checkouts[cs_id]
         sub = {
             "id": "sub_1", "customer": "cus_1", "status": status, "cancel_at_period_end": False,
-            "metadata": {"baton_workspace": workspace or cs["subscription_data"]["metadata"]["baton_workspace"]},
-            "items": {"data": [{"current_period_end": 1_900_000_000}]},
+            "metadata": {**cs["subscription_data"]["metadata"], **({"baton_workspace": workspace} if workspace else {})},
+            "items": {"data": [{"current_period_end": 1_900_000_000, "quantity": cs["line_items"][0]["quantity"]}]},
         }
         self.subscriptions["sub_1"] = sub
         cs.update(subscription=sub, customer_details={"email": "team@example.com"})
@@ -98,7 +98,7 @@ def test_billing_is_off_without_a_stripe_key(mgr):
 
 async def test_paid_models_need_a_subscription_and_the_demo_stays_free(mgr, billing):
     assert billing.required and not billing.allows("anthropic") and billing.allows("demo")
-    with pytest.raises(PaymentRequired, match="Baton Team"):
+    with pytest.raises(PaymentRequired, match="Team or Enterprise"):
         mgr.create_session(user_id="u_alice", task="t", provider="anthropic", model="claude-sonnet-5-5")
     s = mgr.create_session(user_id="u_alice", task="Add rate limiting", provider="demo", model="baton-demo")
     # Switching an existing session to a paid model is gated too.
@@ -108,12 +108,12 @@ async def test_paid_models_need_a_subscription_and_the_demo_stays_free(mgr, bill
 
 async def test_checkout_creates_the_plan_once_and_returning_from_it_activates(mgr, billing):
     stripe = billing.client
-    url = await billing.checkout("https://baton.test")
+    url = await billing.checkout("https://baton.test", "team", seats=30)
     assert url.startswith("https://checkout.stripe.test/")
     price = stripe.prices[0]
-    assert price["unit_amount"] == 2900 and price["recurring"] == {"interval": "month"} and price["lookup_key"] == "baton_team_monthly"
+    assert price["unit_amount"] == 2500 and price["recurring"] == {"interval": "month"} and price["lookup_key"] == "baton_team_seat_monthly"
     cs = next(iter(stripe.checkouts.values()))
-    assert cs["mode"] == "subscription" and cs["line_items"] == [{"price": price["id"], "quantity": 1}]
+    assert cs["mode"] == "subscription" and cs["line_items"][0]["price"] == price["id"] and cs["line_items"][0]["quantity"] == 30
     assert cs["success_url"] == "https://baton.test/billing?checkout={CHECKOUT_SESSION_ID}"
     assert cs["client_reference_id"] == billing.workspace
 
@@ -121,7 +121,7 @@ async def test_checkout_creates_the_plan_once_and_returning_from_it_activates(mg
     await billing.sync_checkout(cs["id"])
     v = billing.view()
     assert v["active"] and v["status"] == "active" and v["email"] == "team@example.com"
-    assert v["current_period_end"] == 1_900_000_000
+    assert v["current_period_end"] == 1_900_000_000 and v["plan"] == "team" and v["seats"] == 30
     assert billing.allows("anthropic")
     mgr.create_session(user_id="u_alice", task="t", provider="anthropic", model="claude-sonnet-5-5")
 
@@ -133,6 +133,21 @@ async def test_checkout_creates_the_plan_once_and_returning_from_it_activates(mg
 
     url = await billing.portal("https://baton.test")
     assert url.endswith("/cus_1") and stripe.portal_configs  # the portal got a default configuration
+
+
+async def test_enterprise_is_billed_yearly_with_a_seat_minimum(billing):
+    stripe = billing.client
+    await billing.checkout("https://baton.test", "enterprise", seats=10)
+    price = stripe.prices[0]
+    assert price["unit_amount"] == 5000 * 12 and price["recurring"] == {"interval": "year"}
+    item = next(iter(stripe.checkouts.values()))["line_items"][0]
+    assert item["quantity"] == 50 and item["adjustable_quantity"]["minimum"] == 50  # raised to the minimum
+    with pytest.raises(BillingError, match="Unknown plan"):
+        await billing.checkout("https://baton.test", "gold")
+    cs_id = next(iter(stripe.checkouts))
+    stripe.complete_checkout(cs_id)
+    await billing.sync_checkout(cs_id)
+    assert billing.view()["plan"] == "enterprise" and billing.view()["seats"] == 50
 
 
 async def test_other_workspaces_subscriptions_are_ignored(billing):
@@ -186,8 +201,10 @@ def test_api_returns_402_and_lets_stripe_reach_the_webhook_past_the_access_code(
         r = c.post("/api/sessions", json={"user_id": "u_alice", "task": "t", "provider": "anthropic", "model": "claude-sonnet-5-5"})
         assert r.status_code == 402 and r.json()["payment_required"]
         view = c.get("/api/billing").json()
-        assert view["required"] and view["test_mode"] and view["plan"]["amount"] == 2900
+        assert view["required"] and view["test_mode"] and [(p["id"], p["seat"]) for p in view["plans"]] == [("team", 2500), ("enterprise", 5000)]
         assert c.post("/api/billing/checkout").json()["url"].startswith("https://checkout.stripe.test/")
+        r = c.post("/api/billing/checkout", json={"plan": "enterprise", "seats": 60})
+        assert r.status_code == 200 and c.post("/api/billing/checkout", json={"plan": "gold"}).status_code == 422
 
         stripe_side = TestClient(c.app)  # no access-code cookie, like Stripe's servers
         body, sig = signed({"id": "evt_x", "object": "event", "type": "product.created", "data": {"object": {"id": "prod_x"}}})

@@ -1,7 +1,8 @@
-"""Subscription billing with Stripe: one flat monthly plan for the whole Baton workspace.
+"""Subscription billing with Stripe: per-seat plans for the whole Baton workspace.
 
-A deployment of Baton is one team's workspace. The team subscribes once through Stripe Checkout and manages
-the subscription (card, invoices, cancelling) in Stripe's customer portal. While billing is required, real
+A deployment of Baton is one team's workspace. The team subscribes once through Stripe Checkout, to Team
+(monthly) or Enterprise (annual, with a seat minimum), paying per seat for the people who drive agents;
+viewers are free. The subscription (card, invoices, cancelling) is managed in Stripe's customer portal. While billing is required, real
 models need an active subscription; the offline demo model, joining, watching and requests stay free.
 
 State comes from Stripe, never from the browser: webhooks are signature-checked, and on every subscription
@@ -21,7 +22,6 @@ from .db import DB
 log = logging.getLogger("baton")
 
 KV = "billing"
-LOOKUP_KEY = "baton_team_monthly"
 # past_due: Stripe is retrying a failed renewal; keep the team working while it does (and say so).
 ACTIVE = {"active", "trialing", "past_due"}
 FREE_PROVIDERS = {"demo", "external"}  # the offline demo model, and agents that bring their own model
@@ -49,7 +49,7 @@ class Billing:
         self.settings = settings
         self.db = db
         self._client = client
-        self._price_id: str | None = settings.stripe_price_id
+        self._price_ids: dict[str, str] = {}
         self._portal_ready = False
 
     # ---- configuration -------------------------------------------------------------
@@ -82,6 +82,22 @@ class Billing:
             self.db.set_kv("workspace", meta)
         return meta["id"]
 
+    @property
+    def plans(self) -> dict[str, dict]:
+        """The paid plans. `seat` is the price per seat per month; Enterprise is charged for a year at a time."""
+        s = self.settings
+        return {
+            "team": {"name": "Team", "seat": s.team_seat_cents, "interval": "month", "min_seats": 1,
+                     "lookup_key": "baton_team_seat_monthly"},
+            "enterprise": {"name": "Enterprise", "seat": s.enterprise_seat_cents, "interval": "year",
+                           "min_seats": s.enterprise_min_seats, "lookup_key": "baton_enterprise_seat_yearly"},
+        }
+
+    def _plan(self, plan: str) -> dict:
+        if plan not in self.plans:
+            raise BillingError(f"Unknown plan {plan!r}")
+        return self.plans[plan]
+
     # ---- state ---------------------------------------------------------------------
     def state(self) -> dict:
         return self.db.get_kv(KV) or {}
@@ -99,7 +115,11 @@ class Billing:
             "enabled": self.enabled,
             "required": self.required,
             "test_mode": self.enabled and self.test_mode,
-            "plan": {"name": s.plan_name, "amount": s.plan_price_cents, "currency": s.plan_currency, "interval": "month"},
+            "currency": s.plan_currency,
+            "plans": [{"id": k, "name": p["name"], "seat": p["seat"], "interval": p["interval"], "min_seats": p["min_seats"]}
+                      for k, p in self.plans.items()],
+            "plan": st.get("plan"),
+            "seats": st.get("seats"),
             "active": self.active(),
             "status": st.get("status"),
             "current_period_end": st.get("current_period_end"),
@@ -109,27 +129,28 @@ class Billing:
         }
 
     # ---- Stripe objects we need ----------------------------------------------------
-    async def price_id(self) -> str:
-        """The plan's monthly price. Found by lookup key, or created (with its product) the first time."""
-        if self._price_id:
-            return self._price_id
-        s = self.settings
-        found = await self.client.v1.prices.list_async({"lookup_keys": [LOOKUP_KEY], "active": True, "limit": 1})
+    async def price_id(self, plan: str = "team") -> str:
+        """The plan's per-seat price. Found by lookup key, or created (with its product) the first time."""
+        if plan in self._price_ids:
+            return self._price_ids[plan]
+        p, currency = self._plan(plan), self.settings.plan_currency
+        amount = p["seat"] * (12 if p["interval"] == "year" else 1)
+        found = await self.client.v1.prices.list_async({"lookup_keys": [p["lookup_key"]], "active": True, "limit": 1})
         data = _get(found, "data", [])
-        if data and _get(data[0], "unit_amount") == s.plan_price_cents and _get(data[0], "currency") == s.plan_currency:
-            self._price_id = _get(data[0], "id")
-            return self._price_id
+        if data and _get(data[0], "unit_amount") == amount and _get(data[0], "currency") == currency:
+            self._price_ids[plan] = _get(data[0], "id")
+            return self._price_ids[plan]
         # No price yet, or the configured amount changed: make a new one and move the lookup key to it.
         product = await self.client.v1.products.create_async({
-            "name": s.plan_name, "description": "Shared agent sessions for your team: every model, unlimited sessions.",
+            "name": f"Baton {p['name']}", "description": "Shared agent sessions, per seat. Viewers are free.",
         })
         price = await self.client.v1.prices.create_async({
-            "product": _get(product, "id"), "unit_amount": s.plan_price_cents, "currency": s.plan_currency,
-            "recurring": {"interval": "month"}, "lookup_key": LOOKUP_KEY, "transfer_lookup_key": True,
+            "product": _get(product, "id"), "unit_amount": amount, "currency": currency,
+            "recurring": {"interval": p["interval"]}, "lookup_key": p["lookup_key"], "transfer_lookup_key": True,
         })
-        self._price_id = _get(price, "id")
-        log.info("created Stripe price %s for %s", self._price_id, s.plan_name)
-        return self._price_id
+        self._price_ids[plan] = _get(price, "id")
+        log.info("created Stripe price %s for Baton %s", self._price_ids[plan], p["name"])
+        return self._price_ids[plan]
 
     async def _ensure_portal(self) -> None:
         """Stripe won't open a customer portal until one is configured; set up a sensible default once."""
@@ -138,7 +159,7 @@ class Billing:
         existing = await self.client.v1.billing_portal.configurations.list_async({"is_default": True, "limit": 1})
         if not _get(existing, "data", []):
             await self.client.v1.billing_portal.configurations.create_async({
-                "business_profile": {"headline": f"Manage your {self.settings.plan_name} subscription"},
+                "business_profile": {"headline": "Manage your Baton subscription"},
                 "features": {
                     "invoice_history": {"enabled": True},
                     "payment_method_update": {"enabled": True},
@@ -149,21 +170,26 @@ class Billing:
         self._portal_ready = True
 
     # ---- flows ---------------------------------------------------------------------
-    async def checkout(self, base_url: str) -> str:
-        """A Stripe Checkout page for the monthly plan. Stripe hosts the card form; no card data touches Baton."""
+    async def checkout(self, base_url: str, plan: str = "team", seats: int = 1) -> str:
+        """A Stripe Checkout page for `seats` seats of a plan. Stripe hosts the card form; no card data touches Baton."""
         if not self.enabled:
             raise BillingError("Billing isn't set up on this server (no STRIPE_SECRET_KEY)")
         if self.active():
             raise BillingError("This workspace already has an active subscription")
+        p = self._plan(plan)
         st = self.state()
         params: dict = {
             "mode": "subscription",
-            "line_items": [{"price": await self.price_id(), "quantity": 1}],
+            "line_items": [{
+                "price": await self.price_id(plan), "quantity": max(seats, p["min_seats"]),
+                # The seat count can still be changed on the Checkout page, but not below the plan's minimum.
+                "adjustable_quantity": {"enabled": True, "minimum": p["min_seats"], "maximum": 10_000},
+            }],
             "success_url": f"{base_url}/billing?checkout={{CHECKOUT_SESSION_ID}}",
             "cancel_url": f"{base_url}/billing?canceled=1",
             "allow_promotion_codes": True,
             "client_reference_id": self.workspace,
-            "subscription_data": {"metadata": {"baton_workspace": self.workspace}},
+            "subscription_data": {"metadata": {"baton_workspace": self.workspace, "baton_plan": plan}},
         }
         if st.get("customer"):
             params["customer"] = st["customer"]  # a returning customer keeps their history
@@ -201,6 +227,8 @@ class Billing:
         period_end = (_get(items[0], "current_period_end") if items else None) or _get(sub, "current_period_end")
         prev = self.state()
         self.db.set_kv(KV, {
+            "plan": _get(_get(sub, "metadata", {}), "baton_plan", "team"),  # subscriptions from before plans were Team
+            "seats": _get(items[0], "quantity") if items else None,
             "customer": _id(_get(sub, "customer")),
             "subscription": _get(sub, "id"),
             "status": _get(sub, "status"),

@@ -187,7 +187,7 @@ class SessionManager:
         if not self.billing.allows(provider):
             label = (self.settings.provider(provider).label if self.settings.provider(provider) else provider)
             raise PaymentRequired(
-                f"{label} models need a {self.settings.plan_name} subscription. Subscribe on the Billing page, "
+                f"{label} models need a Team or Enterprise subscription. Subscribe on the Billing page, "
                 "or use the Offline demo model, which is free."
             )
 
