@@ -57,6 +57,7 @@ const SYSTEM = new Set([
   "agent.checkpoint",
   "control.driver_declined",
   "control.open_floor",
+  "github.pushed",
 ]);
 
 /** Fold the flat event log into timeline items. Pure, so the scrubber can call it with a prefix. */

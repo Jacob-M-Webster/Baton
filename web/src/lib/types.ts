@@ -140,3 +140,14 @@ export interface KeyInfo {
 export interface KeySettings {
   keys: KeyInfo[];
 }
+
+/** A push of a session's workspace to its branch on GitHub (the payload of a github.pushed event). */
+export interface GitHubPush {
+  repo: string;
+  branch: string;
+  base: string | null;
+  commit: string;
+  branch_url: string;
+  pr_url: string | null;
+  pr_error: string | null;
+}

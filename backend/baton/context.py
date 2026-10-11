@@ -136,6 +136,10 @@ def build_messages(task: str, created_by: str, events: list[dict], names: dict[s
             pending.append(command_text(ev, names))
         elif t == "human.interrupt":
             pending.append(f"(system note: {actor_name(names, ev['actor'])} interrupted you mid-step. Wait for their direction.)")
+        elif t == "github.pushed":
+            where = f"the {p['branch']} branch of {p['repo']} on GitHub"
+            pending.append(f"(system note: {actor_name(names, ev['actor'])} pushed the workspace to {where}"
+                           + (f" and it has a pull request: {p['pr_url']}.)" if p.get("pr_url") else ".)"))
         elif t == "control.driver_changed":
             pending.append(f"(system note: {actor_name(names, p['to'])} is now driving this session.)")
         elif t == "control.model_changed":
@@ -244,6 +248,9 @@ def render_events(events: list[dict], names: dict[str, str], limit_chars: int = 
             lines.append(f"#{ev['seq']} driver changed to {actor_name(names, p['to'])}")
         elif t == "control.model_changed":
             lines.append(f"#{ev['seq']} model switched to {p['to']['model']} by {who}")
+        elif t == "github.pushed":
+            lines.append(f"#{ev['seq']} {who} pushed the changes to {p.get('branch')} on GitHub"
+                         + (f" ({p['pr_url']})" if p.get("pr_url") else ""))
         elif t == "control.open_floor":
             lines.append(f"#{ev['seq']} {who} {'opened' if p.get('on') else 'closed'} the floor")
         elif t == "agent.plan":

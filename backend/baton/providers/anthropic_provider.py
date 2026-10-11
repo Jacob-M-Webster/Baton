@@ -65,6 +65,20 @@ class AnthropicProvider:
                 out[-1]["content"].extend(content)
             else:
                 out.append({"role": m["role"], "content": content})
+        # The API returns 400 unless every tool_use is answered first thing in the next message, and only there.
+        # A log cut mid-turn can break that, so pair them up here as a last resort.
+        asked: list[str] = []
+        for m in out:
+            if m["role"] == "user":
+                given = {b["tool_use_id"]: b for b in m["content"] if b["type"] == "tool_result"}
+                rest = [b for b in m["content"] if b["type"] != "tool_result"]
+                m["content"] = [given.get(cid) or {"type": "tool_result", "tool_use_id": cid, "is_error": True,
+                                                   "content": "(no result was recorded for this call)"}
+                                for cid in asked] + rest or [{"type": "text", "text": "(system note: continue.)"}]
+            asked = [b["id"] for b in m["content"] if b["type"] == "tool_use"] if m["role"] == "assistant" else []
+        if asked:
+            out.append({"role": "user", "content": [{"type": "tool_result", "tool_use_id": cid, "is_error": True,
+                                                     "content": "(no result was recorded for this call)"} for cid in asked]})
         # Cache the whole conversation prefix so each turn only pays for what's new.
         if out:
             last = out[-1]["content"][-1]

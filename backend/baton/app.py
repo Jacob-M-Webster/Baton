@@ -81,6 +81,10 @@ class ForkIn(BaseModel):
     seq: int | None = None
 
 
+class PushIn(BaseModel):
+    user_id: str
+
+
 class ExternalSessionIn(BaseModel):
     task: str = Field(min_length=1, max_length=8000)
     agent: str = Field(default="External agent", max_length=40)
@@ -369,6 +373,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if at is None:
             raise HTTPException(400, "Pass the step to fork from as ?seq=N or in the body")
         return mgr(request).fork(sid, at, body.user_id)
+
+    @app.post("/api/sessions/{sid}/push")
+    async def push(sid: str, body: PushIn, request: Request):
+        """Push the workspace to the session's branch on GitHub and open its pull request."""
+        return await mgr(request).push_to_github(sid, body.user_id)
 
     @app.get("/api/sessions/{sid}/comments")
     async def comments(sid: str, request: Request):

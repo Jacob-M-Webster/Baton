@@ -3,7 +3,7 @@ import clsx from "clsx";
 import {
   AlertTriangle, ArrowRightLeft, Ban, Check, ChevronRight, CircleDashed, CircleDot, Cpu, FileText,
   FolderTree, GitFork, ListChecks, Loader2, MessageSquare, PencilLine, FilePlus2, RotateCcw, Square,
-  Terminal, UserPlus, Archive, X, Hand, Code2, Megaphone,
+  Terminal, UserPlus, Archive, X, Hand, Code2, Megaphone, GitPullRequest,
 } from "lucide-react";
 import type { BatonEvent, Participant } from "../lib/types";
 import type { Item, PlanStep, ToolItem } from "../lib/derive";
@@ -869,6 +869,29 @@ function SystemItem({ ev, ctx }: { ev: BatonEvent; ctx: Ctx }) {
         <>
           <span className="font-medium">{who.name}</span> forked this from “{p.parent_title}” at step #{p.fork_seq}
           {p.files_restored ? ` (${p.files_restored} file changes restored)` : ""}
+        </>
+      );
+      break;
+    case "github.pushed":
+      icon = <GitPullRequest className="size-3.5" />;
+      tone = "text-ink-2";
+      body = (
+        <>
+          <span className="font-medium">{who.name}</span> pushed the changes to{" "}
+          <a href={p.branch_url} target="_blank" rel="noreferrer" className="font-mono underline decoration-line-strong underline-offset-2 hover:text-ink">
+            {p.branch}
+          </a>
+          {p.pr_url ? (
+            <>
+              {" "}
+              ·{" "}
+              <a href={p.pr_url} target="_blank" rel="noreferrer" className="font-medium text-baton hover:underline">
+                pull request
+              </a>
+            </>
+          ) : p.pr_error ? (
+            <span className="text-ink-4"> · no pull request: {p.pr_error}</span>
+          ) : null}
         </>
       );
       break;

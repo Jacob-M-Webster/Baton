@@ -22,6 +22,7 @@ from pathlib import Path
 import httpx
 
 from . import context as ctx
+from . import github
 from .billing import Billing
 from .config import Settings
 from .db import DB, new_id
@@ -70,6 +71,7 @@ class SessionManager:
         self._bg: set[asyncio.Task] = set()
         self.billing = Billing(settings, self.db)
         self.terminals: dict[str, tuple[asyncio.Task, asyncio.Task]] = {}  # session -> (work, record) of a terminal command
+        self._pushing: set[str] = set()  # sessions with a push to GitHub under way
 
     # ---- helpers ---------------------------------------------------------
     def workspace(self, session_id: str) -> Workspace:
@@ -614,6 +616,14 @@ class SessionManager:
                 seq = e["seq"] - 1
                 events = [x for x in events if x["seq"] <= seq]
                 break
+        # Nor between a response and its calls: the response is replayed verbatim, calls and all.
+        calls = {e["payload"]["call_id"] for e in events if e["type"] == "tool.call"}
+        for e in events:
+            if e["type"] == "agent.thinking" and any(b.get("type") == "tool_use" and b.get("id") not in calls
+                                                      for b in e["payload"].get("content") or []):
+                seq = e["seq"] - 1
+                events = [x for x in events if x["seq"] <= seq]
+                break
         new = self.db.create_session(title=s["title"], task=s["task"], created_by=user_id, provider=s["provider"],
                                      model=s["model"], config=s["config"], status="waiting_input",
                                      parent_session_id=session_id, fork_seq=seq, driver_id=user_id)
@@ -662,9 +672,61 @@ class SessionManager:
         self.hub.partial.pop(session_id, None)
         self.db.delete_session(session_id)
         self.hub.broadcast(session_id, {"type": "deleted", "by": user_id})
-        for d in (self.workspace(session_id).root, self.settings.data_dir / "blobs" / session_id):
+        for d in (self.workspace(session_id).root, self.settings.data_dir / "blobs" / session_id,
+                  self.settings.data_dir / "pushes" / session_id):
             if d.exists():
                 await asyncio.to_thread(rmtree, d)
+
+    # ---- GitHub ---------------------------------------------------------------
+    async def push_to_github(self, session_id: str, user_id: str) -> dict:
+        """Push the workspace to the session's own branch and open (or find) its pull request."""
+        s = self.db.get_session(session_id)
+        if not s:
+            raise KeyError(session_id)
+        gh = s["config"].get("github")
+        if not gh:
+            raise CommandError("Only sessions started from a GitHub repository can be pushed")
+        role = next((p["role"] for p in self.db.participants(session_id) if p["user_id"] == user_id), None)
+        if role in (None, "viewer"):
+            raise CommandError("Only people working in this session can push it")
+        token = self.settings.github_token
+        if not token:
+            raise CommandError("Add a GitHub token with write access to this repository in Settings first")
+        if session_id in self._pushing:
+            raise CommandError("A push is already under way")
+        repo = github.parse_github(s["config"]["repo"])
+        name = self.names(session_id).get(user_id, "Baton")
+        self._pushing.add(session_id)
+        try:
+            pushed = await github.push(
+                self.repo_base(s), self.workspace(session_id).root, self.settings.data_dir / "pushes" / session_id, repo,
+                start=gh["sha"], branch=github.branch_name(s["title"], session_id),
+                message=f"{s['title']}\n\nMade in a Baton session. Task:\n{s['task']}",
+                author=(name, f"{user_id}@users.baton.invalid"), token=token,
+            )
+            last = self.db.last_event_of(session_id, "github.pushed")
+            if not pushed["committed"] and last and last["payload"]["commit"] == pushed["commit"]:
+                raise CommandError("Nothing has changed since the last push")
+            pr_url = pr_error = None
+            if pushed["base"]:
+                try:
+                    pr_url = await github.open_pull_request(
+                        repo, branch=pushed["branch"], base=pushed["base"], title=s["title"], token=token,
+                        body=f"{s['task']}\n\n---\nPushed from a Baton session by {name}.",
+                    )
+                except github.GitHubError as e:
+                    pr_error = str(e)
+            else:
+                pr_error = "The session started from a tag, not a branch, so there's no branch to open a pull request into"
+        except github.GitHubError as e:
+            raise CommandError(str(e)) from None
+        finally:
+            self._pushing.discard(session_id)
+        return self.append(session_id, user_id, "github.pushed", {
+            "repo": repo.full_name, "branch": pushed["branch"], "base": pushed["base"], "commit": pushed["commit"],
+            "branch_url": f"https://github.com/{repo.full_name}/tree/{pushed['branch']}",
+            "pr_url": pr_url, "pr_error": pr_error,
+        })["payload"]
 
     # ---- catch-up -----------------------------------------------------------
     def catchup(self, session_id: str, user_id: str | None = None) -> dict:

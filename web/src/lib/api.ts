@@ -1,5 +1,5 @@
 import type {
-  CatchUp, Comment, FileContent, KeySettings, ProviderInfo, Session, SessionSummary, User, Participant, WorkspaceFile,
+  CatchUp, Comment, FileContent, GitHubPush, KeySettings, ProviderInfo, Session, SessionSummary, User, Participant, WorkspaceFile,
 } from "./types";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
@@ -51,6 +51,8 @@ export const api = {
     req<CatchUp>(`/api/sessions/${id}/catchup${userId ? `?user_id=${encodeURIComponent(userId)}` : ""}`),
   fork: (id: string, seq: number, userId: string) =>
     req<Session>(`/api/sessions/${id}/fork`, { method: "POST", body: JSON.stringify({ seq, user_id: userId }) }),
+  push: (id: string, userId: string) =>
+    req<GitHubPush>(`/api/sessions/${id}/push`, { method: "POST", body: JSON.stringify({ user_id: userId }) }),
   preview: (id: string) => req<{ base: string }>(`/api/sessions/${id}/preview`),
   files: (id: string) => req<{ files: WorkspaceFile[] }>(`/api/sessions/${id}/files`),
   file: (id: string, path: string) =>

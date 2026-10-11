@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from baton import context as ctx
+from baton import github
 from baton.app import create_app
 from baton.config import load_settings
 from baton.github import GitHubError, GitHubRepo, clone, parse_github
@@ -28,6 +30,12 @@ needs_git = pytest.mark.skipif(not shutil.which("git"), reason="git is not insta
     ("git@github.com:octo/hello.git", "octo", "hello", None),
     ("https://github.com/octo/hello/tree/feature/x", "octo", "hello", "feature/x"),
     ("https://github.com/octo/my.repo?tab=readme", "octo", "my.repo", None),
+    ("git clone https://github.com/octo/hello.git", "octo", "hello", None),
+    ("gh repo clone octo/hello", "octo", "hello", None),
+    ("ssh://git@github.com/octo/hello.git", "octo", "hello", None),
+    ("https://GitHub.com/octo/hello", "octo", "hello", None),
+    ("https://github.com/octo/hello/blob/main/README.md", "octo", "hello", None),
+    ("https://github.com/octo/hello/pulls", "octo", "hello", None),
 ])
 def test_parse_github_accepts_what_people_paste(text, owner, name, ref):
     r = parse_github(text)
@@ -95,6 +103,54 @@ async def test_github_session_clones_once_and_forks_from_the_same_commit(mgr, fa
     assert mgr.repo_base(fork) == mgr.repo_base(s)
     assert mgr.workspace(fork["id"]).read_text("pkg/app.py") == "print('bye')\n"
     assert mgr.workspace(fork["id"]).read_text("README.md") == "# Hello\n"
+
+
+@needs_git
+async def test_push_sends_the_workspace_to_its_own_branch_and_opens_a_pull_request(mgr, fake_github, monkeypatch):
+    opened = []
+
+    async def fake_pr(repo, **kw):
+        opened.append(kw)
+        return "https://github.com/octo/hello/pull/7"
+    monkeypatch.setattr(github, "open_pull_request", fake_pr)
+    gh = parse_github("octo/hello")
+    cloned = await clone(gh, mgr.settings.data_dir / "repos")
+    s = mgr.create_session(user_id="u_alice", task="Say bye", provider="demo", model="baton-demo",
+                           repo=gh.full_name, github=cloned, title="Say bye")
+    await mgr.runners[s["id"]].stop()
+    ws = mgr.workspace(s["id"])
+
+    with pytest.raises(CommandError, match="GitHub token"):
+        await mgr.push_to_github(s["id"], "u_alice")
+    mgr.settings.github_token = "t0ken"
+    with pytest.raises(CommandError, match="working in this session"):
+        await mgr.push_to_github(s["id"], "u_bob")
+
+    ws.write_file("pkg/app.py", "print('bye')\n")
+    ws.write_file("node_modules/dep/index.js", "junk\n")  # never copied into workspaces, so never pushed
+    first = await mgr.push_to_github(s["id"], "u_alice")
+    assert first["branch"] == f"baton/say-bye-{s['id'][-6:].lower()}" and first["base"] == "main"
+    assert first["pr_url"] == "https://github.com/octo/hello/pull/7"
+    assert opened[0]["branch"] == first["branch"] and opened[0]["base"] == "main"
+
+    remote = ["git", "--git-dir", str(fake_github.parent / "src.git")]
+    show = lambda *a: subprocess.run([*remote, *a], capture_output=True, text=True, check=True).stdout
+    assert show("rev-parse", first["branch"]).strip() == first["commit"]
+    assert show("rev-parse", f"{first['commit']}^").strip() == cloned["sha"]
+    assert show("show", f"{first['branch']}:pkg/app.py") == "print('bye')\n"
+    assert "node_modules" not in show("ls-tree", "-r", "--name-only", first["branch"])
+    assert show("log", "-1", "--format=%an", first["branch"]).strip() == "Alice"
+
+    with pytest.raises(CommandError, match="Nothing has changed"):
+        await mgr.push_to_github(s["id"], "u_alice")
+    ws.write_file("README.md", "# Bye\n")
+    second = await mgr.push_to_github(s["id"], "u_alice")
+    assert second["branch"] == first["branch"]
+    assert show("rev-parse", f"{second['commit']}^").strip() == first["commit"]  # on top, never a force-push
+    pushes = [e for e in mgr.db.events(s["id"]) if e["type"] == "github.pushed"]
+    assert len(pushes) == 2
+    msgs = ctx.build_messages(s["task"], s["created_by"], mgr.db.events(s["id"]), mgr.names(s["id"]))
+    assert "pull/7" in json.dumps(msgs)
 
 
 @needs_git

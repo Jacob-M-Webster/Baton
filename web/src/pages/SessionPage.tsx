@@ -7,7 +7,7 @@ import { useIdentity } from "../lib/identity";
 import { connectSession, useSession, type ToolProgress } from "../lib/session";
 import { compact } from "../lib/format";
 import { buildItems, currentPlan, groupReads, openDecision } from "../lib/derive";
-import type { BatonEvent, CatchUp, Participant, Session } from "../lib/types";
+import type { BatonEvent, CatchUp, GitHubPush, Participant, Session } from "../lib/types";
 import { refreshSessions } from "../lib/sessions";
 import { AgentAvatar } from "../components/Avatar";
 import { StatusDot } from "../components/StatusPill";
@@ -92,6 +92,8 @@ export function SessionPage({ id }: { id: string }) {
     return groupReads(buildItems(visible), keep);
   }, [visible, comments, highlight, openThread]);
   const decision = useMemo(() => openDecision(events), [events]);
+  // Not findLast: Safari before 15.4 lacks it, and a crash here takes down the whole session view.
+  const lastPush = useMemo(() => [...events].reverse().find((e) => e.type === "github.pushed")?.payload as GitHubPush | undefined, [events]);
   const isDriver = session?.driver_id === me;
   const live = viewSeq === null;
 
@@ -312,6 +314,7 @@ export function SessionPage({ id }: { id: string }) {
         participants={participants}
         me={me}
         hasDecision={!!decision}
+        lastPush={lastPush}
         send={send}
         conn={conn}
         onCatchUp={() => setShowCatchUp("join")}

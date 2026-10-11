@@ -345,6 +345,23 @@ async def test_interleaved_thinking_replays_in_its_original_order(mgr):
     other = [m for m in AnthropicProvider.to_wire(msgs, "claude-sonnet-5-5") if m["role"] == "assistant"][0]["content"]
     assert [b["type"] for b in other] == ["text", "tool_use", "tool_use"]
 
+    # Forking right after that response must not keep it without its calls: it would replay unanswered tool_use.
+    thinking = next(e for e in mgr.db.events(sid) if e["type"] == "agent.thinking" and e["payload"].get("content"))
+    fork = mgr.fork(sid, thinking["seq"], "u_alice")
+    assert fork["fork_seq"] < thinking["seq"]
+
+
+def test_every_tool_use_is_answered_on_the_wire():
+    """A log cut between a response and its calls still sends the API a tool_result for each tool_use."""
+    native = [{"type": "thinking", "thinking": "Look first.", "signature": "sig"},
+              {"type": "tool_use", "id": "toolu_a", "name": "list_files", "input": {}}]
+    events = [{"seq": 1, "type": "agent.thinking", "actor": "agent", "payload": {
+        "text": "Look first.", "turn": 1, "blocks": [native[0]], "model": "claude-haiku-5-5", "content": native}}]
+    wire = AnthropicProvider.to_wire(ctx.build_messages("t", "u_alice", events, {}), "claude-haiku-5-5")
+    assert [m["role"] for m in wire] == ["user", "assistant", "user"]
+    first = wire[2]["content"][0]
+    assert first["type"] == "tool_result" and first["tool_use_id"] == "toolu_a" and first["is_error"]
+
 
 async def test_steer_during_a_tool_reaches_the_next_model_call(mgr):
     """Redirect: a steer sent mid-step is injected at the next turn boundary, after the tool result."""

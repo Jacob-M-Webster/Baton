@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import QRCode from "qrcode";
 import clsx from "clsx";
-import { Check, Code2, Copy, GitFork, Link2, ListTree, Megaphone, Play, Sparkles, Square } from "lucide-react";
-import type { Participant, Session } from "../lib/types";
+import { Check, Code2, Copy, ExternalLink, GitFork, GitPullRequest, Link2, ListTree, Loader2, Megaphone, Play, Sparkles, Square } from "lucide-react";
+import type { GitHubPush, Participant, Session } from "../lib/types";
 import { api } from "../lib/api";
 import { useAccess } from "../lib/access";
 import { Avatar } from "../components/Avatar";
@@ -12,12 +12,14 @@ import { Button, Kbd } from "../components/Button";
 import { ModelPicker } from "../components/ModelPicker";
 import { MenuItem, MenuLabel, Popover } from "../components/Menu";
 import { StatusPill } from "../components/StatusPill";
+import { toast } from "../components/Toasts";
 
 export function SessionHeader({
   session,
   participants,
   me,
   hasDecision,
+  lastPush,
   send,
   onCatchUp,
   conn,
@@ -28,6 +30,7 @@ export function SessionHeader({
   participants: Participant[];
   me: string;
   hasDecision: boolean;
+  lastPush?: GitHubPush;
   send: (m: Record<string, unknown>) => boolean;
   onCatchUp: () => void;
   conn: string;
@@ -111,6 +114,12 @@ export function SessionHeader({
           <Sparkles className="size-3.5" />
           <span className="hidden xl:inline">Catch up</span>
         </Button>
+
+        {session.config?.github && mine && mine.role !== "viewer" && (
+          <div className="hidden sm:block">
+            <PushButton sessionId={session.id} me={me} repo={session.config.repo || ""} lastPush={lastPush} />
+          </div>
+        )}
 
         <div className="hidden sm:block">
           <ShareButton sessionId={session.id} openFloor={!!session.config?.open_floor} isDriver={isDriver} send={send} />
@@ -334,6 +343,65 @@ function ShareButton({
               {copied ? "Copied" : "Copy"}
             </Button>
           </div>
+        </div>
+      )}
+    </Popover>
+  );
+}
+
+function PushButton({ sessionId, me, repo, lastPush }: { sessionId: string; me: string; repo: string; lastPush?: GitHubPush }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const push = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const r = await api.push(sessionId, me);
+      toast(r.pr_url ? `Pushed to ${r.branch} and the pull request is up to date` : `Pushed to ${r.branch}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const link = "inline-flex items-center gap-1 truncate text-[12px] hover:underline";
+  return (
+    <Popover
+      width={300}
+      trigger={(_, toggle) => (
+        <Button onClick={toggle} title={`Push the changes to a branch on ${repo}`}>
+          <GitPullRequest className="size-3.5" />
+          <span className="hidden lg:inline">{lastPush ? "Pull request" : "Push"}</span>
+        </Button>
+      )}
+    >
+      {() => (
+        <div className="p-2">
+          <p className="text-[13px] font-semibold">Push to GitHub</p>
+          <p className="mt-0.5 text-xs leading-snug text-ink-3">
+            {lastPush
+              ? "Adds a commit with everything changed since the last push. Nothing is merged until someone approves the pull request."
+              : `Commits this session's changes to a new branch on ${repo} and opens a pull request. Nothing is merged until someone approves it.`}
+          </p>
+          {lastPush && (
+            <div className="mt-2.5 space-y-1 rounded-lg border border-line bg-sunken px-2.5 py-2">
+              <a href={lastPush.branch_url} target="_blank" rel="noreferrer" className={clsx(link, "font-mono text-ink-2")}>
+                {lastPush.branch} <ExternalLink className="size-3 shrink-0" />
+              </a>
+              {lastPush.pr_url ? (
+                <a href={lastPush.pr_url} target="_blank" rel="noreferrer" className={clsx(link, "font-medium text-baton")}>
+                  View pull request <ExternalLink className="size-3 shrink-0" />
+                </a>
+              ) : (
+                lastPush.pr_error && <p className="text-[11.5px] leading-snug text-ink-4">No pull request: {lastPush.pr_error}</p>
+              )}
+            </div>
+          )}
+          {error && <p className="mt-2 text-[11.5px] leading-snug text-danger">{error}</p>}
+          <Button variant="primary" className="mt-2.5 w-full justify-center" onClick={push} disabled={busy}>
+            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <GitPullRequest className="size-3.5" />}
+            {busy ? "Pushing…" : lastPush ? "Push new changes" : "Push and open pull request"}
+          </Button>
         </div>
       )}
     </Popover>
