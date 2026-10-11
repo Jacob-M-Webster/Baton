@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import QRCode from "qrcode";
 import clsx from "clsx";
-import { ArrowLeft, ArrowRight, Check, Cpu, Eye, GitFork, Lightbulb, MessageSquare, Radio, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, GitFork, Lightbulb, MessageSquare, Radio, Sparkles } from "lucide-react";
 import { api } from "../lib/api";
 import { useAccess } from "../lib/access";
 import { Logo, BatonMark } from "../components/Logo";
@@ -139,15 +139,19 @@ const SLIDES: (() => ReactNode)[] = [
     <Slide eyebrow="The problem" title="Agents are single-player.">
       <div className="grid grid-cols-3 gap-10">
         <Point icon={<Eye className="size-5" />} title="Invisible">
-          The work lives in one person's terminal tab. Teammates find out what happened from a pull request, after the fact.
+          The work lives in one person's terminal. Teammates find out from the pull request.
         </Point>
         <Point icon={<MessageSquare className="size-5" />} title="Unsteerable">
-          The colleague who knows “that middleware is deprecated” has no way to tell the agent before it builds on it.
+          The colleague who knows “that middleware is deprecated” can't tell the agent in time.
         </Point>
         <Point icon={<BatonMark className="size-5" />} title="Stranded">
-          When the person who started it logs off, the run stalls. There is no hand-off, only a transcript.
+          When its owner logs off, the run stalls. There is no hand-off, only a transcript.
         </Point>
       </div>
+      <p className="mt-12 max-w-[1000px] text-[17px] leading-relaxed text-ink-3">
+        <span className="font-medium text-ink">Why now:</span> agents run for many minutes on real repositories, too long for one person to babysit,
+        and compliance teams want every human decision attributed. The bottleneck moved from writing code to coordinating agents.
+      </p>
     </Slide>
   ),
   () => (
@@ -159,16 +163,16 @@ const SLIDES: (() => ReactNode)[] = [
     <Slide eyebrow="The product" title="Everything a team needs to work with one agent.">
       <div className="grid grid-cols-2 gap-x-14 gap-y-10">
         <Point icon={<Sparkles className="size-5" />} title="Catch up in seconds">
-          Join late and get a card: the goal, what's done, what people changed, the open question.
+          Join late and get a card: the goal, what's done, the open question.
         </Point>
         <Point icon={<Lightbulb className="size-5" />} title="Steer without collisions">
-          One driver steers. Everyone else suggests or comments on any step; the driver sends the good ones to the agent.
+          One driver steers. Everyone else suggests; the driver forwards the good ones.
         </Point>
         <Point icon={<BatonMark className="size-5" />} title="Hand off the baton">
-          Pass control in one click. The new driver gets a summary and the decision waiting for them.
+          Pass control in one click, with the pending decision attached.
         </Point>
         <Point icon={<GitFork className="size-5" />} title="Rewind and fork">
-          Scrub to any step to see the session as it was, then fork a new branch of the work from there.
+          Scrub to any step and branch the work from there.
         </Point>
       </div>
     </Slide>
@@ -195,27 +199,13 @@ const SLIDES: (() => ReactNode)[] = [
         <div className="space-y-6 text-[17px] leading-relaxed text-ink-3">
           <p>
             <span className="font-medium text-ink">Switch models mid-session.</span> Context is rebuilt from the log every turn, so a run can start on a
-            local model and hand the hard part to Claude.
+            local model and hand the hard part to Claude. That also gives us crash recovery and compaction for free.
           </p>
           <p>
-            <span className="font-medium text-ink">The same mechanism gives us</span> resume after a crash and automatic compaction of long sessions.
+            <span className="font-medium text-ink">No vendor lock-in.</span> Teams mix frontier APIs and local weights for cost and privacy. The
+            collaboration layer can't belong to one vendor.
           </p>
         </div>
-      </div>
-    </Slide>
-  ),
-  () => (
-    <Slide eyebrow="Why now" title="The bottleneck moved from writing code to coordinating agents.">
-      <div className="grid grid-cols-3 gap-10">
-        <Point icon={<RotateCcw className="size-5" />} title="Runs got long">
-          Agents now work for many minutes on real repositories. Long runs need checkpoints, hand-offs and review.
-        </Point>
-        <Point icon={<Cpu className="size-5" />} title="Models got interchangeable">
-          Teams mix frontier APIs and local weights for cost and privacy. The collaboration layer can't belong to one vendor.
-        </Point>
-        <Point icon={<Check className="size-5" />} title="Oversight became a requirement">
-          Every human decision is attributed and exportable, which is what security and compliance teams ask for first.
-        </Point>
       </div>
     </Slide>
   ),
@@ -223,24 +213,12 @@ const SLIDES: (() => ReactNode)[] = [
     <Slide eyebrow="Business model" title="Priced per seat. Viewers are always free.">
       <PlanTable dense />
       <p className="mt-6 text-[16px] text-ink-3">
-        Customers bring their own LLM key, so our margins don't depend on any model provider's pricing. Example: 30 engineers driving agents in a
-        50-person org, on Team, is $750 a month, $9,000 a year.
+        Customers bring their own LLM key, so our margins don't depend on model pricing. 30 drivers on Team is $9,000 a year.
       </p>
-    </Slide>
-  ),
-  () => (
-    <Slide eyebrow="Where it goes" title="The system of record for human and agent work.">
-      <div className="grid grid-cols-3 gap-10">
-        <Point icon={<Radio className="size-5" />} title="Ingest any agent">
-          Any agent can already stream into a session through the ingest API. Adapters for Claude Code and Codex are next.
-        </Point>
-        <Point icon={<Sparkles className="size-5" />} title="Learn from interventions">
-          Where do humans step in, and how fast? Insights already answers it from the log, per team and per model.
-        </Point>
-        <Point icon={<RotateCcw className="size-5" />} title="Durable by default">
-          Multi-day runs on a workflow engine, with the same replay and hand-off semantics.
-        </Point>
-      </div>
+      <p className="mt-3 text-[16px] text-ink-3">
+        <span className="font-medium text-ink">Next:</span> the system of record for human and agent work. Claude Code and Codex adapters on the
+        ingest API, intervention insights per team and model, multi-day durable runs.
+      </p>
     </Slide>
   ),
   () => (
