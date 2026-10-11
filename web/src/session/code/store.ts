@@ -25,6 +25,8 @@ interface CodeState {
   follow: boolean; // open whatever file the agent is working on
   showDiff: boolean;
   terminalOpen: boolean;
+  preview: boolean; // show the workspace's web page instead of the editor
+  previewRoot: string | null; // the folder whose index.html is previewed ("" for the repository root)
 }
 
 export const useCode = create<CodeState>(() => ({
@@ -36,6 +38,8 @@ export const useCode = create<CodeState>(() => ({
   follow: true,
   showDiff: false,
   terminalOpen: true,
+  preview: false,
+  previewRoot: null,
 }));
 
 const set = useCode.setState;
@@ -49,7 +53,7 @@ function patch(path: string, p: Partial<Buffer>) {
 /** A new session starts with no open files; which view you prefer carries over. */
 export function resetCode(sid: string) {
   if (get().sid === sid) return;
-  set({ sid, tabs: [], active: null, buffers: {}, follow: true, showDiff: false });
+  set({ sid, tabs: [], active: null, buffers: {}, follow: true, showDiff: false, preview: false, previewRoot: null });
 }
 
 export function setView(view: CodeState["view"]) {
@@ -71,8 +75,8 @@ export function openFile(path: string, opts: { manual?: boolean } = {}) {
         ...s.buffers,
         [path]: { path, content: "", hash: "", original: null, diff: "", draft: null, stale: false, missing: false, isNew: false, loaded: false, saving: false },
       };
-  // Picking a file yourself stops following the agent around.
-  set({ tabs, active: path, buffers, ...(opts.manual ? { follow: false } : {}) });
+  // Picking a file yourself stops following the agent around (and leaves the preview for the editor).
+  set({ tabs, active: path, buffers, ...(opts.manual ? { follow: false, preview: false } : {}) });
   if (!buffers[path].loaded && !buffers[path].isNew) void loadFile(path);
 }
 
@@ -131,6 +135,7 @@ export function newFile(path: string) {
     tabs: s.tabs.includes(path) ? s.tabs : [...s.tabs, path],
     active: path,
     follow: false,
+    preview: false,
     buffers: {
       ...s.buffers,
       [path]: { path, content: "", hash: "", original: null, diff: "", draft: "", stale: false, missing: false, isNew: true, loaded: true, saving: false },
@@ -158,4 +163,12 @@ export function toggleDiff() {
 
 export function toggleTerminal() {
   set({ terminalOpen: !get().terminalOpen });
+}
+
+export function setPreview(preview: boolean) {
+  set({ preview });
+}
+
+export function setPreviewRoot(previewRoot: string) {
+  set({ previewRoot });
 }

@@ -313,6 +313,34 @@ export function workspaceVersion(events: BatonEvent[]): number {
   return n;
 }
 
+/** Bumps only when files may actually have changed (writes, edits, commands), not on reads, so a live preview
+ * reloads when there's something new to show. */
+export function fileChangeVersion(events: BatonEvent[]): number {
+  const names = new Map<string, string>();
+  let n = 0;
+  for (const e of events) {
+    if (e.type === "tool.call") names.set(e.payload.call_id, e.payload.name);
+    else if (e.type === "human.edit" || e.type === "human.command_result") n++;
+    else if (e.type === "tool.result" && !e.payload.cancelled) {
+      const name = names.get(e.payload.call_id);
+      if (name === "run_command" || ((name === "write_file" || name === "edit_file") && !e.payload.is_error)) n++;
+    }
+  }
+  return n;
+}
+
+/** Folders that hold an index.html, most likely site first: build output, then public/, then anything else. */
+export function siteRoots(paths: string[]): string[] {
+  const rank = (d: string) => {
+    const i = ["dist", "build", "out", "public", ""].indexOf(d);
+    return i >= 0 ? i : 10 + d.split("/").length;
+  };
+  return paths
+    .filter((p) => p === "index.html" || p.endsWith("/index.html"))
+    .map((p) => p.slice(0, -"index.html".length).replace(/\/$/, ""))
+    .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+}
+
 /** Marks for the scrubber track: where humans stepped in, decisions, errors. */
 export function marks(events: BatonEvent[]) {
   return events

@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
 from . import context as ctx
@@ -20,6 +20,7 @@ from .config import ROOT, Settings, load_settings
 from .github import GitHubError, clone, parse_github
 from .hub import Conn
 from .billing import BillingError
+from . import preview
 from .sandbox import list_sample_repos, read_original
 from .sessions import CommandError, PaymentRequired, SessionManager
 
@@ -406,6 +407,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "path": path, "content": text, "diff": make_diff(path, original or "", text) if original != text else "",
             "original": original, "hash": content_hash(text),
         }
+
+    # ---- preview: the workspace as a website ------------------------------------
+    @app.get("/api/sessions/{sid}/preview")
+    async def preview_info(sid: str, request: Request):
+        s = mgr(request).db.get_session(sid)
+        if not s:
+            raise KeyError(sid)
+        return {"base": f"{preview.PREFIX}{sid}/{preview.preview_key(sid, settings.access_code)}/"}
+
+    @app.get("/api/preview/{sid}/{key}/{root}")
+    async def preview_root(sid: str, key: str, root: str):
+        return RedirectResponse(f"{preview.PREFIX}{sid}/{key}/{root}/", status_code=307)
+
+    @app.get("/api/preview/{sid}/{key}/{root}/{path:path}")
+    async def preview_file(sid: str, key: str, root: str, path: str, request: Request):
+        m = mgr(request)
+        s = m.db.get_session(sid)
+        if not s or s["provider"] == "external" or not preview.key_ok(sid, key, settings.access_code):
+            return PlainTextResponse("Not found", status_code=404, headers=preview.HEADERS)
+        return preview.serve(m.workspace(sid), root, path, f"{preview.PREFIX}{sid}/{key}/{root}")
 
     @app.get("/api/sessions/{sid}/blobs/{call_id}")
     async def blob(sid: str, call_id: str, request: Request):

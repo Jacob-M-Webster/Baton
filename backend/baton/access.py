@@ -3,7 +3,8 @@
 Identity in Baton is just a typed-in name, and a session's driver (and its agent) can run commands on the
 server. So anything reachable from the internet sits behind one shared code. Entering it once sets a
 signed cookie; the browser sends that on every request and on WebSocket handshakes. External agents keep
-their per-session ingest token, or send the code in an `X-Baton-Access` header.
+their per-session ingest token, or send the code in an `X-Baton-Access` header. Workspace previews carry a
+per-session key in their path instead (see preview.py).
 """
 from __future__ import annotations
 
@@ -14,6 +15,8 @@ import re
 import time
 
 from starlette.requests import cookie_parser
+
+from . import preview
 
 COOKIE = "baton_access"
 # The unlock endpoint, and Stripe's webhook (verified by its own signature instead).
@@ -47,6 +50,9 @@ class AccessGate:
             return await self.app(scope, receive, send)
         path = scope["path"]
         if not path.startswith("/api/") or path in OPEN or TOKEN_AUTH.match(path) or granted(scope, self.code):
+            return await self.app(scope, receive, send)
+        pv = preview.PATH.match(path)
+        if pv and preview.key_ok(pv.group(1), pv.group(2), self.code):
             return await self.app(scope, receive, send)
         if scope["type"] == "websocket":
             await send({"type": "websocket.close", "code": 4401, "reason": "access code required"})

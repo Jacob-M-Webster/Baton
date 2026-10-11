@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
-import { Crosshair, FileDiff, GitCompare, Loader2, Lock, PanelLeft, RotateCcw, Save, X } from "lucide-react";
+import { Crosshair, FileDiff, GitCompare, Globe, Loader2, Lock, PanelLeft, RotateCcw, Save, X } from "lucide-react";
 import type { BatonEvent, Participant, Session, WorkspaceFile } from "../../lib/types";
 import { api } from "../../lib/api";
-import { agentFile, lastWriters, openDecision, workspaceRuns, workspaceVersion } from "../../lib/derive";
+import { agentFile, fileChangeVersion, lastWriters, openDecision, workspaceRuns, workspaceVersion } from "../../lib/derive";
 import { useSession } from "../../lib/session";
 import { AgentAvatar, Avatar } from "../../components/Avatar";
 import { Button, Kbd } from "../../components/Button";
@@ -13,8 +13,9 @@ import { CodeEditor } from "./Editor";
 import { FileIcon, FileTree } from "./FileTree";
 import { TerminalPanel } from "./Terminal";
 import { AgentPane } from "./AgentPane";
+import { PreviewPane } from "./Preview";
 import {
-  closeTab, discardDraft, loadFile, newFile, openFile, saveFile, setDraft, setFollow, setView, toggleDiff, toggleTerminal, useCode,
+  closeTab, discardDraft, loadFile, newFile, openFile, saveFile, setDraft, setFollow, setPreview, setView, toggleDiff, toggleTerminal, useCode,
 } from "./store";
 
 const FILE_TOOLS = new Set(["write_file", "edit_file"]);
@@ -37,7 +38,7 @@ export default function CodeView({
   me: string;
   onJump: (seq: number) => void;
 }) {
-  const { tabs, active, buffers, follow, showDiff, terminalOpen } = useCode();
+  const { tabs, active, buffers, follow, showDiff, terminalOpen, preview } = useCode();
   const partial = useSession((s) => s.partial);
   const send = useSession((s) => s.send);
   const conn = useSession((s) => s.conn);
@@ -48,6 +49,7 @@ export default function CodeView({
   const canEdit = isDriver && !external;
   const people = useMemo(() => Object.fromEntries(participants.map((p) => [p.user_id, p])) as Record<string, Participant>, [participants]);
   const version = useMemo(() => workspaceVersion(events), [events]);
+  const changes = useMemo(() => fileChangeVersion(events), [events]);
   const agent = useMemo(() => agentFile(events, partial.turn !== null ? partial.tool : null), [events, partial.turn, partial.tool]);
   const writers = useMemo(() => lastWriters(events), [events]);
   const runs = useMemo(() => workspaceRuns(events), [events]);
@@ -194,7 +196,7 @@ export default function CodeView({
           <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto">
             {tabs.map((t) => {
               const b = buffers[t];
-              const isActive = t === active;
+              const isActive = t === active && !preview;
               const tDirty = b?.draft !== null && b?.draft !== undefined;
               return (
                 <div
@@ -226,6 +228,17 @@ export default function CodeView({
             })}
           </div>
           <button
+            onClick={() => setPreview(!preview)}
+            className={clsx(
+              "flex shrink-0 items-center gap-1.5 border-l border-line px-3 text-[12px]",
+              preview ? "bg-baton-soft font-medium text-baton" : "text-ink-3 hover:text-ink",
+            )}
+            title="See the workspace's web page, live"
+          >
+            <Globe className="size-3.5" />
+            <span className="hidden sm:inline">Preview</span>
+          </button>
+          <button
             onClick={() => setFollow(!follow)}
             className={clsx(
               "flex shrink-0 items-center gap-1.5 border-l border-line px-3 text-[12px]",
@@ -238,8 +251,10 @@ export default function CodeView({
           </button>
         </div>
 
+        {preview && <PreviewPane sid={session.id} files={files} version={changes} />}
+
         {/* path and actions */}
-        {buf && (
+        {buf && !preview && (
           <div className="flex h-9 shrink-0 items-center gap-2 border-b border-line px-3">
             <span className="min-w-0 truncate font-mono text-[12px] text-ink-3">
               {active!.split("/").map((part, i, all) => (
@@ -300,7 +315,7 @@ export default function CodeView({
         )}
 
         {/* banners */}
-        {buf?.stale && (
+        {buf?.stale && !preview && (
           <div className="flex flex-wrap items-center gap-2 border-b border-attn/30 bg-attn-soft px-3 py-1.5 text-[12px] text-ink-2">
             <FileDiff className="size-3.5 text-attn" />
             <span className="min-w-0 flex-1">
@@ -316,12 +331,12 @@ export default function CodeView({
             )}
           </div>
         )}
-        {dirty && !canEdit && (
+        {dirty && !canEdit && !preview && (
           <div className="border-b border-line bg-sunken px-3 py-1.5 text-[12px] text-ink-3">
             You're not driving any more. Your unsaved edits stay here; ask for the baton to save them.
           </div>
         )}
-        {agentHere && agent!.verb !== "reading" && (
+        {agentHere && agent!.verb !== "reading" && !preview && (
           <div className="flex items-center gap-2 border-b border-baton/20 bg-baton-soft/60 px-3 py-1.5 text-[12px]">
             <AgentAvatar size={16} provider={session.provider} />
             <span className="shimmer-text font-medium">The agent is {agent!.verb} this file</span>
@@ -330,7 +345,7 @@ export default function CodeView({
         )}
 
         {/* editor */}
-        <div className="relative min-h-0 flex-1">
+        <div className={clsx("relative min-h-0 flex-1", preview && "hidden")}>
           {!active ? (
             <div className="grid h-full place-items-center p-6 text-center text-[13px] text-ink-3">
               <div>

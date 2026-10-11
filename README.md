@@ -34,6 +34,11 @@ subscribes to, with roles, hand-offs and a memory of who changed what.
   to file. See who has which file open. The driver can edit, save and run commands. Hand edits and
   terminal runs are events like everything else: attributed, shown in the timeline, replayed into forks,
   and read by the agent at its next step.
+- **Live preview.** **Preview** in the code view shows the workspace's web page: any folder with an
+  `index.html`, such as plain HTML or a build in `dist/` (run `npm run build` in the terminal). It reloads when
+  files change. Pages run sandboxed, so they can't call Baton's API, and root-relative URLs in HTML and CSS are
+  kept inside the preview. URLs that scripts build at run time aren't, so give bundlers a relative base
+  (Vite: `base: "./"`). Pages are served as static files only; there's no dev server or backend behind them.
 - **Any model, switchable mid-session.** Claude, Gemini, OpenAI, local weights, or any OpenAI/Anthropic
   compatible endpoint, plus an offline demo model.
 - **Bring your own agent.** External agents stream into a session and take steering back over a

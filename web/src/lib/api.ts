@@ -51,6 +51,7 @@ export const api = {
     req<CatchUp>(`/api/sessions/${id}/catchup${userId ? `?user_id=${encodeURIComponent(userId)}` : ""}`),
   fork: (id: string, seq: number, userId: string) =>
     req<Session>(`/api/sessions/${id}/fork`, { method: "POST", body: JSON.stringify({ seq, user_id: userId }) }),
+  preview: (id: string) => req<{ base: string }>(`/api/sessions/${id}/preview`),
   files: (id: string) => req<{ files: WorkspaceFile[] }>(`/api/sessions/${id}/files`),
   file: (id: string, path: string) =>
     req<FileContent>(`/api/sessions/${id}/files/${path.split("/").map(encodeURIComponent).join("/")}`),
