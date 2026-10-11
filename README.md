@@ -1,5 +1,7 @@
 # Baton
 
+[See our demo here!](https://youtu.be/sKwHaWB106Q)
+
 **Multiplayer for AI agents.** Baton runs a coding agent on a server instead of in one person's
 terminal, and turns its work into a shared, live session. Anyone with the link can watch it work,
 catch up in seconds, comment on any step, and steer it. One person drives at a time; handing off is
