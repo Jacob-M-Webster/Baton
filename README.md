@@ -205,8 +205,8 @@ monthly, and **Enterprise**, $50 per seat per month, billed annually, with a 50-
 keys `baton_team_seat_monthly` and `baton_enterprise_seat_yearly`), and the customer portal gets a default
 configuration. The seat count is chosen on the Billing page and can be adjusted on Stripe's Checkout page. Then:
 
-- **Pay with a test card:** on the **Billing** page (sidebar), click Subscribe and pay with `4242 4242 4242 4242`,
-  any future expiry, any CVC. The page lists Stripe's other test cards (declines, 3D Secure). Coming back from
+- **Pay with a test card:** on the **Billing** page (sidebar), pick a plan, click Continue to payment and pay with `4242 4242 4242 4242`,
+  any future expiry, any CVC (Stripe documents other test cards for declines and 3D Secure). Coming back from
   Checkout confirms the subscription with Stripe directly, so this works locally without webhooks.
 - **Prove it recurs:** `python scripts/stripe_setup.py renewal` subscribes a throwaway customer with
   Stripe's test Visa on a test clock, skips ahead a month and shows the renewal invoice being paid.

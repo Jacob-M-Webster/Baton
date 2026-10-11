@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+
 import { Check, Minus } from "lucide-react";
 import clsx from "clsx";
 import { money, type Plan, type PlanId } from "../lib/billing";
@@ -12,7 +12,7 @@ const DEFAULT_PLANS: Plan[] = [
   { id: "enterprise", name: "Enterprise", seat: 5000, interval: "year", min_seats: 50 },
 ];
 
-const WHO: Record<Tier, string> = {
+export const WHO: Record<Tier, string> = {
   free: "Individuals and side projects",
   team: "Engineering teams using agents",
   enterprise: "Larger orgs, multiple agents",
@@ -41,17 +41,15 @@ export function PlanTable({
   plans,
   currency = "usd",
   highlight = "team",
-  actions,
   dense,
 }: {
   plans?: Plan[];
   currency?: string;
   highlight?: Tier;
-  actions?: Partial<Record<Tier, ReactNode>>;
   dense?: boolean;
 }) {
   const byId = Object.fromEntries((plans?.length ? plans : DEFAULT_PLANS).map((p) => [p.id, p])) as Record<PlanId, Plan>;
-  const col = (t: Tier) => clsx("px-4 text-center", t === highlight && "bg-baton-soft/40");
+  const col = (t: Tier) => clsx("px-4 text-center", t === highlight && "bg-sunken/60");
   const pad = dense ? "py-2.5" : "py-3";
   const head = (t: Tier) => {
     const p = t === "free" ? null : byId[t];
@@ -66,7 +64,6 @@ export function PlanTable({
           {!p ? "Forever" : p.interval === "year" ? `Billed annually · ${p.min_seats}-seat min.` : "Billed monthly"}
         </div>
         <div className="mt-2 text-[12px] leading-snug text-ink-3">{WHO[t]}</div>
-        {actions?.[t] && <div className="mt-3">{actions[t]}</div>}
       </>
     );
   };
@@ -76,8 +73,8 @@ export function PlanTable({
       {!dense && (
         <div className="space-y-4 sm:hidden">
           {TIERS.map((t) => (
-            <div key={t} className={clsx("overflow-hidden rounded-2xl border bg-panel", t === highlight ? "border-baton/50" : "border-line")}>
-              <div className={clsx("p-4 text-center", t === highlight && "bg-baton-soft/40")}>{head(t)}</div>
+            <div key={t} className={clsx("overflow-hidden rounded-xl border bg-panel", t === highlight ? "border-ink/40" : "border-line")}>
+              <div className={clsx("p-4 text-center", t === highlight && "bg-sunken/60")}>{head(t)}</div>
               <dl className="divide-y divide-line border-t border-line">
                 {ROWS.map(([label, v]) => (
                   <div key={label} className="flex items-center gap-4 px-4 py-2.5 text-[13.5px]">
@@ -92,13 +89,13 @@ export function PlanTable({
           ))}
         </div>
       )}
-      <div className={clsx("overflow-x-auto rounded-2xl border border-line bg-panel", !dense && "hidden sm:block")}>
+      <div className={clsx("overflow-x-auto rounded-xl border border-line bg-panel", !dense && "hidden sm:block")}>
         <table className="w-full min-w-[600px] table-fixed border-collapse text-left">
           <thead>
             <tr className="align-top">
               <th className="w-[28%] px-4 py-4" />
               {TIERS.map((t) => (
-                <th key={t} scope="col" className={clsx(col(t), "py-4 font-normal", t === highlight && "border-t-2 border-t-baton")}>
+                <th key={t} scope="col" className={clsx(col(t), "py-4 font-normal", t === highlight && "border-t-2 border-t-ink")}>
                   {head(t)}
                 </th>
               ))}
