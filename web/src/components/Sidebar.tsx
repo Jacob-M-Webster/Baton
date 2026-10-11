@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { BarChart3, CreditCard, GitFork, Moon, Plus, Presentation, Sun } from "lucide-react";
+import { BarChart3, CreditCard, GitFork, Moon, Plus, Presentation, Settings, Sun } from "lucide-react";
 import clsx from "clsx";
 import { useSessionList } from "../lib/sessions";
 import { useBilling } from "../lib/billing";
@@ -11,6 +11,7 @@ import { Logo } from "./Logo";
 import { StatusDot } from "./StatusPill";
 import { Avatar } from "./Avatar";
 import { IdentityModal } from "./IdentityModal";
+import { DeleteSessionButton, canDelete } from "./DeleteSession";
 
 export function Sidebar() {
   const { sessions, loaded } = useSessionList();
@@ -84,6 +85,9 @@ export function Sidebar() {
                 <span className={clsx("min-w-0 flex-1 truncate text-[13px]", active ? "font-medium text-ink" : "text-ink-2")}>
                   {s.title}
                 </span>
+                {canDelete(s, user?.id) && (
+                  <DeleteSessionButton session={s} me={user!.id} className="-my-1 -mr-1 opacity-0 group-hover:opacity-100 focus:opacity-100" />
+                )}
               </span>
               <span className="flex items-center gap-2 pl-4 text-[11.5px] text-ink-4">
                 {s.parent_session_id && (
@@ -111,6 +115,17 @@ export function Sidebar() {
             <span className="truncate text-[13px] font-medium">{user.name}</span>
           </button>
         )}
+        <Link
+          href="/settings"
+          className={clsx(
+            "grid size-7 place-items-center rounded-md text-ink-3 hover:bg-sunken hover:text-ink",
+            loc === "/settings" && "bg-sunken text-ink",
+          )}
+          aria-label="Settings"
+          title="Settings: API keys and GitHub token"
+        >
+          <Settings className="size-4" />
+        </Link>
         <Link href="/pitch" className="grid size-7 place-items-center rounded-md text-ink-3 hover:bg-sunken hover:text-ink" aria-label="Pitch deck" title="Pitch deck">
           <Presentation className="size-4" />
         </Link>

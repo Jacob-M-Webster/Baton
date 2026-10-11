@@ -56,6 +56,10 @@ class Settings:
     slack_webhook: str | None
     providers: list[ProviderConfig] = field(default_factory=list)
     access_code: str | None = None  # when set, the API needs this shared code (see access.py)
+    github_token: str | None = None  # lets sessions clone private GitHub repositories
+    admin_code: str | None = None  # unlocks changing API keys from the Settings page (see keys.py)
+    catchup_min_seconds: float = 120.0  # at most one catch-up summary request per session this often
+    catchup_refresh_events: int = 15  # how many new events make a catch-up summary worth redoing
     # Billing (see billing.py). Off unless a Stripe key is set.
     stripe_secret_key: str | None = None
     stripe_webhook_secret: str | None = None
@@ -155,8 +159,12 @@ def load_settings(**overrides) -> Settings:
         driver_idle_seconds=int(os.environ.get("BATON_DRIVER_IDLE_SECONDS", "120")),
         checkpoint_every_turns=int(os.environ.get("BATON_CHECKPOINT_EVERY", "10")),
         keep_recent_turns=int(os.environ.get("BATON_KEEP_RECENT_TURNS", "6")),
+        catchup_min_seconds=float(os.environ.get("BATON_CATCHUP_MIN_SECONDS", "120")),
+        catchup_refresh_events=int(os.environ.get("BATON_CATCHUP_REFRESH_EVENTS", "15")),
         slack_webhook=os.environ.get("SLACK_WEBHOOK_URL") or None,
         access_code=os.environ.get("BATON_ACCESS_CODE", "").strip() or None,
+        github_token=os.environ.get("GITHUB_TOKEN", "").strip() or None,
+        admin_code=os.environ.get("BATON_ADMIN_CODE", "").strip() or None,
         stripe_secret_key=os.environ.get("STRIPE_SECRET_KEY", "").strip() or None,
         stripe_webhook_secret=os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip() or None,
         stripe_price_id=os.environ.get("STRIPE_PRICE_ID", "").strip() or None,

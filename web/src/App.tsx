@@ -10,6 +10,7 @@ import { SessionPage } from "./pages/SessionPage";
 import { Sidebar } from "./components/Sidebar";
 import { Pitch } from "./pages/Pitch";
 import { Insights } from "./pages/Insights";
+import { SettingsPage } from "./pages/Settings";
 import { Billing } from "./pages/Billing";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
@@ -42,6 +43,9 @@ export function App() {
             </Route>
             <Route path="/insights">
               <Insights />
+            </Route>
+            <Route path="/settings">
+              <SettingsPage />
             </Route>
             <Route path="/billing">
               <Billing />

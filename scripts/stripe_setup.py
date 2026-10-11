@@ -82,7 +82,7 @@ async def renewal(b: Billing) -> None:
         print(f"Subscribed a test customer with Stripe's test Visa (4242 4242 4242 4242): {_get(sub, 'id')} is {_get(sub, 'status')}")
 
         await c.test_helpers.test_clocks.advance_async(_get(clock, "id"), {"frozen_time": start + 32 * 86400})
-        print("Moving the test clock forward 32 days…", end="", flush=True)
+        print("Moving the test clock forward 32 days...", end="", flush=True)
         for _ in range(90):
             if _get(await c.test_helpers.test_clocks.retrieve_async(_get(clock, "id")), "status") == "ready":
                 break

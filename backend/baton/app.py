@@ -17,9 +17,10 @@ from pydantic import BaseModel, Field
 from . import context as ctx
 from .access import COOKIE, AccessGate, Attempts, granted, token_for
 from .config import ROOT, Settings, load_settings
+from .github import GitHubError, clone, parse_github
 from .hub import Conn
-from .sandbox import SAMPLE_REPOS, list_sample_repos, read_text_file
 from .billing import BillingError
+from .sandbox import list_sample_repos, read_original
 from .sessions import CommandError, PaymentRequired, SessionManager
 
 log = logging.getLogger("baton")
@@ -60,6 +61,13 @@ class SessionIn(BaseModel):
     provider: str = "demo"
     model: str = "baton-demo"
     repo: str = "notes-api"
+    github: str | None = Field(default=None, max_length=300)  # owner/name or a github.com URL; wins over `repo`
+    ref: str | None = Field(default=None, max_length=200)  # branch or tag; defaults to the repo's default branch
+
+
+class KeysIn(BaseModel):
+    values: dict[str, str | None] = Field(max_length=10)  # a key to save it, null or "" to clear it
+    admin_code: str | None = Field(default=None, max_length=200)
 
 
 class ForkIn(BaseModel):
@@ -157,6 +165,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         resp.set_cookie(COOKIE, token_for(code), max_age=30 * 86400, httponly=True, samesite="lax",
                         secure=request.url.scheme == "https")
         return resp
+
+    # ---- settings: API keys -----------------------------------------------------
+    def keys_mode() -> str:
+        # "code": BATON_ADMIN_CODE unlocks changes. "open": a local/LAN server without an access code.
+        # "locked": a hosted server (access code set) with no admin code, so keys only change in server.env.
+        if settings.admin_code:
+            return "code"
+        return "locked" if settings.access_code else "open"
+
+    @app.get("/api/settings")
+    async def get_settings(request: Request):
+        return {"keys": mgr(request).keys.view(), "mode": keys_mode()}
+
+    @app.put("/api/settings")
+    async def put_settings(body: KeysIn, request: Request):
+        mode = keys_mode()
+        if mode == "locked":
+            raise HTTPException(403, "Keys can't be changed here on a hosted server unless BATON_ADMIN_CODE is set")
+        if mode == "code":
+            who = "admin:" + (request.client.host if request.client else "?")
+            if attempts.blocked(who):
+                raise HTTPException(429, "Too many wrong codes. Wait a few minutes and try again.")
+            if not hmac.compare_digest((body.admin_code or "").strip(), settings.admin_code or ""):
+                attempts.fail(who)
+                raise HTTPException(403, "That admin code isn't right")
+        try:
+            keys = mgr(request).update_keys(body.values)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from None
+        return {"keys": keys, "mode": mode}
 
     @app.exception_handler(CommandError)
     async def _cmd_err(_: Request, e: CommandError):
@@ -263,10 +301,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         m = mgr(request)
         if not m.db.get_user(body.user_id):
             raise HTTPException(400, "Unknown user; sign in first")
+        if (body.github or "").strip():
+            if not body.task.strip():
+                raise HTTPException(400, "Describe a task for the agent")
+            if not settings.provider(body.provider):
+                raise HTTPException(400, f"Unknown provider: {body.provider}")
+            m.require_plan(body.provider)  # before the clone, so nobody waits for one that can't be used
+            try:
+                gh = parse_github(body.github, body.ref)
+                cloned = await clone(gh, settings.data_dir / "repos", settings.github_token)
+            except GitHubError as e:
+                raise HTTPException(400, str(e)) from None
+            return m.create_session(user_id=body.user_id, task=body.task, provider=body.provider, model=body.model,
+                                    repo=gh.full_name, title=body.title, github=cloned)
         if body.repo not in {r["id"] for r in list_sample_repos()}:
             raise HTTPException(400, f"Unknown repo {body.repo}")
         return m.create_session(user_id=body.user_id, task=body.task, provider=body.provider, model=body.model,
                                 repo=body.repo, title=body.title)
+
+    @app.delete("/api/sessions/{sid}")
+    async def delete_session(sid: str, request: Request, user_id: str):
+        await mgr(request).delete_session(sid, user_id)
+        return {"ok": True}
 
     # ---- external agents ---------------------------------------------------------
     def bearer(authorization: str | None) -> str | None:
@@ -338,12 +394,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not s:
             raise KeyError(sid)
         ws = m.workspace(sid)
-        base = SAMPLE_REPOS / s["config"].get("repo", "notes-api")
+        base = m.repo_base(s)
         now = ws.snapshot() if ws.root.exists() else {}
         out = []
         for path in sorted(now):
-            orig = base / path
-            state = "added" if not orig.exists() else ("modified" if read_text_file(orig) != now[path] else "same")
+            orig = read_original(base, path)
+            state = "added" if orig is None else ("modified" if orig != now[path] else "same")
             out.append({"path": path, "state": state, "size": len(now[path])})
         return {"files": out}
 
@@ -360,8 +416,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             text = None
         if text is None:
             raise HTTPException(404, "No such file")
-        base = SAMPLE_REPOS / s["config"].get("repo", "notes-api") / path
-        original = read_text_file(base) if base.is_file() else None
+        original = read_original(m.repo_base(s), path)
         from .sandbox import content_hash, make_diff
 
         return {

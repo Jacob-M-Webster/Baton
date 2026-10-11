@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowRight, ArrowUpRight, Cpu, History, Lock, Users } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Cpu, GitBranch, History, Lock, Users } from "lucide-react";
 import { api } from "../lib/api";
 import { locked, price, useBilling } from "../lib/billing";
 import { useIdentity } from "../lib/identity";
@@ -11,6 +11,18 @@ import { ModelPicker, ProviderGlyph, useModelCatalog } from "../components/Model
 import { StatusPill } from "../components/StatusPill";
 import { Avatar } from "../components/Avatar";
 import { toast } from "../components/Toasts";
+import { DeleteSessionButton, canDelete } from "../components/DeleteSession";
+
+const GITHUB = "__github"; // the repo menu's "GitHub repository…" entry
+const LAST_GITHUB = "baton:last-github";
+
+function remembered(): string {
+  try {
+    return localStorage.getItem(LAST_GITHUB) || "";
+  } catch {
+    return "";
+  }
+}
 
 const EXAMPLES = [
   "Add rate limiting to this API and write tests.",
@@ -25,6 +37,9 @@ export function Home() {
   const { sessions } = useSessionList();
   const [task, setTask] = useState(EXAMPLES[0]);
   const [repo, setRepo] = useState("notes-api");
+  const [github, setGithub] = useState(remembered);
+  const [branch, setBranch] = useState("");
+  const onGithub = repo === GITHUB;
   const [repos, setRepos] = useState<{ id: string; description: string }[]>([]);
   const [choice, setChoice] = useState<{ provider: string; model: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -55,11 +70,20 @@ export function Home() {
     }
   }, [providers, choice, billing, billingLoaded]);
 
+  const ready = !!choice && !!task.trim() && (!onGithub || !!github.trim());
   const start = async () => {
-    if (!user || !choice || !task.trim()) return;
+    if (!user || !choice || !ready) return;
     setBusy(true);
     try {
-      const s = await api.createSession({ user_id: user.id, task, repo, ...choice });
+      const where = onGithub ? { repo: "", github: github.trim(), ref: branch.trim() || undefined } : { repo };
+      const s = await api.createSession({ user_id: user.id, task, ...where, ...choice });
+      if (onGithub) {
+        try {
+          localStorage.setItem(LAST_GITHUB, github.trim());
+        } catch {
+          /* private window: nothing to remember */
+        }
+      }
       refreshSessions();
       navigate(`/s/${s.id}`);
     } catch (e) {
@@ -118,15 +142,43 @@ export function Home() {
                     {r.id}
                   </option>
                 ))}
+                <option value={GITHUB}>GitHub repository…</option>
               </select>
             </label>
+            {onGithub && (
+              <div className="flex h-9 min-w-[260px] flex-1 items-center rounded-lg border border-line bg-panel text-[13px] focus-within:border-ink-3">
+                <input
+                  autoFocus
+                  value={github}
+                  onChange={(e) => setGithub(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") start();
+                  }}
+                  placeholder="owner/repo or https://github.com/owner/repo"
+                  aria-label="GitHub repository"
+                  spellCheck={false}
+                  className="h-full min-w-0 flex-1 bg-transparent px-2.5 font-mono text-[12.5px] text-ink outline-none placeholder:font-sans placeholder:text-ink-4"
+                />
+                <label className="flex h-full items-center gap-1 border-l border-line pl-2 text-ink-4" title="Branch or tag (default branch if empty)">
+                  <GitBranch className="size-3.5 shrink-0" />
+                  <input
+                    value={branch}
+                    onChange={(e) => setBranch(e.target.value)}
+                    placeholder="default"
+                    aria-label="Branch or tag"
+                    spellCheck={false}
+                    className="h-full w-[84px] bg-transparent pr-2 font-mono text-[12.5px] text-ink outline-none placeholder:font-sans placeholder:text-ink-4"
+                  />
+                </label>
+              </div>
+            )}
             {choice && <ModelPicker provider={choice.provider} model={choice.model} onChange={(provider, model) => setChoice({ provider, model })} />}
             <div className="ml-auto flex items-center gap-3">
               <span className="hidden text-xs text-ink-4 sm:inline">
                 <Kbd>⌘</Kbd> <Kbd>Enter</Kbd>
               </span>
-              <Button variant="primary" className="h-9 px-4" onClick={start} disabled={busy || !choice || !task.trim() || paywalled}>
-                Start session
+              <Button variant="primary" className="h-9 px-4" onClick={start} disabled={busy || !ready || paywalled}>
+                {busy && onGithub ? "Cloning…" : "Start session"}
                 <ArrowRight className="size-4" />
               </Button>
             </div>
@@ -166,10 +218,10 @@ export function Home() {
             </div>
             <div className="overflow-hidden rounded-xl border border-line bg-panel">
               {sessions.slice(0, 8).map((s, i) => (
+                <div key={s.id} className={`group flex items-center hover:bg-sunken/60 ${i ? "border-t border-line" : ""}`}>
                 <button
-                  key={s.id}
                   onClick={() => navigate(`/s/${s.id}`)}
-                  className={`group flex w-full items-center gap-4 px-4 py-3 text-left hover:bg-sunken/60 ${i ? "border-t border-line" : ""}`}
+                  className="flex min-w-0 flex-1 items-center gap-4 py-3 pl-4 text-left"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[13.5px] font-medium text-ink">{s.title}</div>
@@ -198,6 +250,12 @@ export function Home() {
                   </div>
                   <ArrowUpRight className="size-4 text-ink-4 opacity-0 group-hover:opacity-100" />
                 </button>
+                <div className="w-10 shrink-0 pr-3 pl-1">
+                  {user && canDelete(s, user.id) && (
+                    <DeleteSessionButton session={s} me={user.id} className="opacity-0 group-hover:opacity-100 focus:opacity-100" />
+                  )}
+                </div>
+                </div>
               ))}
             </div>
           </section>

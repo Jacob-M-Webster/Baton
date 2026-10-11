@@ -148,6 +148,20 @@ class DB:
         sets = ",".join(f"{k}=?" for k in fields)
         self.conn.execute(f"UPDATE sessions SET {sets} WHERE id=?", (*fields.values(), session_id))
 
+    def delete_session(self, session_id: str) -> None:
+        """Delete a session and everything stored under it. Its forks keep their own copies and lose the link."""
+        cur = self.conn.cursor()
+        cur.execute("BEGIN IMMEDIATE")
+        try:
+            for table in ("events", "participants", "comments", "ingest_tokens"):
+                cur.execute(f"DELETE FROM {table} WHERE session_id=?", (session_id,))
+            cur.execute("UPDATE sessions SET parent_session_id=NULL WHERE parent_session_id=?", (session_id,))
+            cur.execute("DELETE FROM sessions WHERE id=?", (session_id,))
+            cur.execute("COMMIT")
+        except Exception:
+            cur.execute("ROLLBACK")
+            raise
+
     # ---- events ---------------------------------------------------------
     def append_event(self, session_id: str, actor: str, type_: str, payload: dict) -> dict:
         """Append one event and bump head_seq atomically. Returns the stored event."""

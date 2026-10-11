@@ -193,6 +193,12 @@ class SessionSocket {
       case "error":
         toast(msg.message, "error");
         break;
+      case "deleted":
+        // Someone deleted this session: stop reconnecting and let the page move on.
+        this.close();
+        set({ conn: "closed" });
+        window.dispatchEvent(new CustomEvent("baton:deleted", { detail: { sid: this.sid, by: msg.by } }));
+        break;
     }
   }
 }

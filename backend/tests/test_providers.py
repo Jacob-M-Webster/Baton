@@ -310,3 +310,32 @@ def test_tool_progress_reports_target_and_throttles():
     assert p.feed('_limit.py", "content": "') is None  # throttled until ~240 more chars
     later = p.feed("x" * 300)
     assert later.data["target"] == "app/middleware/rate_limit.py" and later.data["chars"] > 300
+
+
+async def test_catchup_summary_is_throttled(mgr):
+    """Tabs poll the catch-up card on every few events; that must not turn into a model call each time."""
+    from baton.providers.base import StreamEvent
+
+    class Quiet:
+        id = "anthropic"
+        summaries = 0
+
+        async def stream(self, **_):
+            yield StreamEvent("text_delta", "Hello.")
+            yield StreamEvent("done", data={"stop_reason": "end_turn"})
+
+        async def complete(self, **_):
+            Quiet.summaries += 1
+            return "not json"  # an unusable summary must not be retried on the next poll either
+
+    mgr.providers["anthropic"] = Quiet()
+    sid = mgr.create_session(user_id="u_alice", task="Say hi", provider="anthropic", model="claude-sonnet-5-5")["id"]
+    await wait_for(lambda: mgr.db.get_session(sid)["status"] == "waiting_input")
+    for _ in range(5):
+        mgr.catchup(sid)
+        await wait_for(lambda: mgr._catchup_jobs[sid].done())
+    assert Quiet.summaries == 1
+
+    mgr._catchup_asked[sid] -= mgr.settings.catchup_min_seconds  # the window has passed
+    mgr.catchup(sid)
+    await wait_for(lambda: Quiet.summaries == 2)

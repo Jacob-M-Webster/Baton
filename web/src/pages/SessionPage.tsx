@@ -66,6 +66,18 @@ export function SessionPage({ id }: { id: string }) {
     };
   }, [id, me]);
 
+  useEffect(() => {
+    const onDeleted = (e: Event) => {
+      const { sid, by } = (e as CustomEvent<{ sid: string; by: string }>).detail;
+      if (sid !== id) return;
+      if (by !== me) toast("This session was deleted by the person who started it", "info");
+      refreshSessions();
+      navigate("/");
+    };
+    window.addEventListener("baton:deleted", onDeleted);
+    return () => window.removeEventListener("baton:deleted", onDeleted);
+  }, [id, me, navigate]);
+
   const liveCard = useCatchUp(id, me, events.length ? events[events.length - 1].seq : 0);
   const card = liveCard || initialCard;
 

@@ -15,7 +15,7 @@ export interface Session {
   fork_seq: number | null;
   provider: string;
   model: string;
-  config: { repo?: string; open_floor?: boolean };
+  config: { repo?: string; open_floor?: boolean; github?: { url: string; ref: string | null; sha: string } };
 }
 
 export interface Participant {
@@ -126,4 +126,19 @@ export interface User {
   id: string;
   name: string;
   color: string;
+}
+
+export interface KeyInfo {
+  name: string; // ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, GITHUB_TOKEN
+  label: string;
+  provider: string | null;
+  set: boolean;
+  source: "saved" | "env" | null; // saved from this page, or from the server's environment
+  hint: string | null; // the last four characters
+}
+
+export interface KeySettings {
+  keys: KeyInfo[];
+  // open: anyone can change keys (local server). code: the admin code is needed. locked: only in server.env.
+  mode: "open" | "code" | "locked";
 }

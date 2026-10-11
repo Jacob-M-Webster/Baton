@@ -26,10 +26,12 @@ from .billing import Billing
 from .config import Settings
 from .db import DB, new_id
 from .hub import Hub
+from .keys import KeyStore
 from .providers import build_provider
 from .providers.base import ProviderError
 from .sandbox import (
-    CONTROL_TOOLS, TOOL_SPECS, ToolError, Workspace, content_hash, execute_tool, replay_file_changes,
+    CONTROL_TOOLS, SAMPLE_REPOS, TOOL_SPECS, ToolError, Workspace, content_hash, execute_tool, replay_file_changes,
+    rmtree,
 )
 
 log = logging.getLogger("baton")
@@ -60,9 +62,11 @@ class SessionManager:
         self.db = db or DB(settings.data_dir / "baton.db")
         self.hub = Hub()
         self.runners: dict[str, Runner] = {}
+        self.keys = KeyStore(settings)  # applies keys saved from the Settings page before providers are built
         self.providers = {p.id: build_provider(p, settings) for p in settings.providers}
         self._catchup_cache: dict[str, dict] = {}
         self._catchup_jobs: dict[str, asyncio.Task] = {}
+        self._catchup_asked: dict[str, float] = {}  # session -> when we last asked a model for a catch-up summary
         self._bg: set[asyncio.Task] = set()
         self.billing = Billing(settings, self.db)
         self.terminals: dict[str, tuple[asyncio.Task, asyncio.Task]] = {}  # session -> (work, record) of a terminal command
@@ -71,6 +75,13 @@ class SessionManager:
     def workspace(self, session_id: str) -> Workspace:
         return Workspace(self.settings.data_dir / "workspaces" / session_id, runtime=self.settings.sandbox,
                          image=self.settings.sandbox_image)
+
+    def repo_base(self, s: dict) -> Path:
+        """The untouched repository a session started from: a sample repo, or its clone of a GitHub repository."""
+        gh = s["config"].get("github")
+        if gh:
+            return self.settings.data_dir / gh["path"]
+        return SAMPLE_REPOS / s["config"].get("repo", "notes-api")
 
     def names(self, session_id: str) -> dict[str, str]:
         ids = {p["user_id"] for p in self.db.participants(session_id)}
@@ -139,9 +150,16 @@ class SessionManager:
         t.add_done_callback(self._bg.discard)
         return t
 
+    def update_keys(self, values: dict[str, str | None]) -> list[dict]:
+        """Change API keys from the Settings page. Sessions pick up the new key on their next turn."""
+        for pid in self.keys.update(values):
+            self.providers[pid] = build_provider(self.settings.provider(pid), self.settings)
+        return self.keys.view()
+
     # ---- lifecycle -------------------------------------------------------
     def create_session(self, *, user_id: str, task: str, provider: str, model: str,
-                       repo: str = "notes-api", title: str | None = None) -> dict:
+                       repo: str = "notes-api", title: str | None = None, github: dict | None = None) -> dict:
+        """Start a session on a sample repo, or on a GitHub clone (`github` is what `github.clone` returned)."""
         task = task.strip()
         if not task:
             raise CommandError("Describe a task for the agent")
@@ -150,13 +168,18 @@ class SessionManager:
             raise CommandError(f"Unknown provider: {provider}")
         self.require_plan(provider)
         title = (title or "").strip() or ctx.clip(ctx.first_sentence(task), 72)
+        config: dict = {"repo": repo}
+        if github:
+            config["github"] = github
         s = self.db.create_session(title=title, task=task, created_by=user_id, provider=provider, model=model,
-                                   config={"repo": repo}, status="running")
-        Workspace.create(self.workspace(s["id"]).root, repo, runtime=self.settings.sandbox, image=self.settings.sandbox_image)
+                                   config=config, status="running")
+        Workspace.create_from(self.workspace(s["id"]).root, self.repo_base(s), runtime=self.settings.sandbox,
+                              image=self.settings.sandbox_image)
         self.db.upsert_participant(s["id"], user_id, "driver")
-        self.append(s["id"], user_id, "session.started", {
-            "task": task, "title": title, "repo": repo, "provider": provider, "model": model,
-        })
+        started = {"task": task, "title": title, "repo": repo, "provider": provider, "model": model}
+        if github:
+            started["github"] = {k: github[k] for k in ("url", "ref", "sha")}
+        self.append(s["id"], user_id, "session.started", started)
         self.start_runner(s["id"])
         return self.session_view(s["id"])
 
@@ -600,8 +623,8 @@ class SessionManager:
             self.db.upsert_participant(new["id"], p["user_id"], "collaborator")
         self.db.upsert_participant(new["id"], user_id, "driver")
         self.db.update_participant(new["id"], user_id, role="driver")
-        ws = Workspace.create(self.workspace(new["id"]).root, s["config"].get("repo", "notes-api"),
-                              runtime=self.settings.sandbox, image=self.settings.sandbox_image)
+        ws = Workspace.create_from(self.workspace(new["id"]).root, self.repo_base(s),
+                                   runtime=self.settings.sandbox, image=self.settings.sandbox_image)
         applied = replay_file_changes(ws, events)
         self.append(new["id"], user_id, "session.forked", {
             "parent_session_id": session_id, "parent_title": s["title"], "fork_seq": seq, "files_restored": applied,
@@ -610,6 +633,38 @@ class SessionManager:
             self.db.update_session(new["id"], status="waiting_input")
         self.start_runner(new["id"])
         return self.session_view(new["id"])
+
+    # ---- delete ------------------------------------------------------------
+    def can_delete(self, s: dict, user_id: str) -> bool:
+        # External sessions are started by a bot, so anyone in them may clean them up.
+        return s["created_by"] == user_id or (s["provider"] == EXTERNAL and s["created_by"].startswith("ext_"))
+
+    async def delete_session(self, session_id: str, user_id: str) -> None:
+        """Remove a session for good: its log, comments, workspace and stored outputs. Forks of it stay."""
+        s = self.db.get_session(session_id)
+        if not s:
+            raise KeyError(session_id)
+        if not self.can_delete(s, user_id):
+            raise CommandError("Only the person who started a session can delete it")
+        # Stop everything that could still write to the log, and let it finish writing first.
+        runner = self.runners.pop(session_id, None)
+        if runner:
+            await runner.stop()
+        term = self.terminals.pop(session_id, None)
+        if term:
+            term[0].cancel()
+            await asyncio.gather(term[1], return_exceptions=True)
+        job = self._catchup_jobs.pop(session_id, None)
+        if job:
+            job.cancel()
+        self._catchup_cache.pop(session_id, None)
+        self._catchup_asked.pop(session_id, None)
+        self.hub.partial.pop(session_id, None)
+        self.db.delete_session(session_id)
+        self.hub.broadcast(session_id, {"type": "deleted", "by": user_id})
+        for d in (self.workspace(session_id).root, self.settings.data_dir / "blobs" / session_id):
+            if d.exists():
+                await asyncio.to_thread(rmtree, d)
 
     # ---- catch-up -----------------------------------------------------------
     def catchup(self, session_id: str, user_id: str | None = None) -> dict:
@@ -626,7 +681,7 @@ class SessionManager:
                 card.update({k: cached[k] for k in ("doing", "done", "next") if cached.get(k)})
                 card["source"] = cached["source"]
                 card["summary_seq"] = cached["head_seq"]
-            if stale > 6:
+            if stale >= self.settings.catchup_refresh_events:
                 self._refresh_catchup(session_id)
         else:
             self._refresh_catchup(session_id)
@@ -643,6 +698,13 @@ class SessionManager:
         job = self._catchup_jobs.get(session_id)
         if job and not job.done():
             return
+        # Every open tab polls the card as events arrive; one model call per window is plenty, and a failed
+        # or unparseable summary must not be retried on every poll.
+        now = time.monotonic()
+        last = self._catchup_asked.get(session_id)
+        if last is not None and now - last < self.settings.catchup_min_seconds:
+            return
+        self._catchup_asked[session_id] = now
         self._catchup_jobs[session_id] = self.spawn(self._llm_catchup(session_id))
 
     async def _llm_catchup(self, session_id: str) -> None:

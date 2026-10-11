@@ -22,10 +22,15 @@ export function useModelCatalog() {
   return state.list;
 }
 
+/** Fetch the model menu again (after a key changes in Settings). */
+export function refreshModelCatalog() {
+  useProviders.setState({ loaded: false });
+}
+
 const SETUP: Record<string, string> = {
-  anthropic: "Set ANTHROPIC_API_KEY",
-  openai: "Set OPENAI_API_KEY",
-  gemini: "Set GEMINI_API_KEY",
+  anthropic: "Add an API key in Settings",
+  openai: "Add an API key in Settings",
+  gemini: "Add an API key in Settings",
   local: "Start Ollama or any OpenAI-compatible server",
 };
 
