@@ -121,7 +121,7 @@ def test_originals_are_never_read_through_links(tmp_path):
 # ---- deleting sessions -----------------------------------------------------------
 @pytest.fixture
 def client(tmp_path):
-    app = create_app(load_settings(data_dir=tmp_path, demo_speed=200.0, access_code=None, admin_code=None))
+    app = create_app(load_settings(data_dir=tmp_path, demo_speed=200.0, access_code=None))
     with TestClient(app) as c:
         c.post("/api/users", json={"id": "u_alice", "name": "Alice"})
         c.post("/api/users", json={"id": "u_bob", "name": "Bob"})
@@ -180,7 +180,6 @@ async def test_anyone_in_it_may_delete_an_external_session(mgr):
 # ---- API keys --------------------------------------------------------------------
 def test_keys_can_be_changed_on_a_local_server(client, tmp_path):
     view = client.get("/api/settings").json()
-    assert view["mode"] == "open"
     assert [k["name"] for k in view["keys"]] == ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GITHUB_TOKEN"]
 
     key = "sk-test-0123456789abcd"
@@ -208,18 +207,9 @@ def test_keys_can_be_changed_on_a_local_server(client, tmp_path):
     assert client.put("/api/settings", json={"values": {"OPENAI_API_KEY": "two words"}}).status_code == 400
 
 
-def test_hosted_servers_need_the_admin_code(tmp_path):
-    settings = load_settings(data_dir=tmp_path, access_code="door", admin_code=None)
-    with TestClient(create_app(settings)) as c:
-        c.post("/api/access", json={"code": "door"})
-        assert c.get("/api/settings").json()["mode"] == "locked"
-        assert c.put("/api/settings", json={"values": {"OPENAI_API_KEY": "sk-1"}}).status_code == 403
-
-    settings = load_settings(data_dir=tmp_path, access_code="door", admin_code="keys-please")
+def test_hosted_servers_let_anyone_inside_change_keys(tmp_path):
+    settings = load_settings(data_dir=tmp_path, access_code="door")
     with TestClient(create_app(settings)) as c:
         assert c.get("/api/settings").status_code == 401  # still behind the access code
         c.post("/api/access", json={"code": "door"})
-        assert c.get("/api/settings").json()["mode"] == "code"
-        body = {"values": {"OPENAI_API_KEY": "sk-1"}}
-        assert c.put("/api/settings", json={**body, "admin_code": "door"}).status_code == 403
-        assert c.put("/api/settings", json={**body, "admin_code": "keys-please"}).status_code == 200
+        assert c.put("/api/settings", json={"values": {"OPENAI_API_KEY": "sk-1"}}).status_code == 200

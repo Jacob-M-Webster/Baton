@@ -67,7 +67,6 @@ class SessionIn(BaseModel):
 
 class KeysIn(BaseModel):
     values: dict[str, str | None] = Field(max_length=10)  # a key to save it, null or "" to clear it
-    admin_code: str | None = Field(default=None, max_length=200)
 
 
 class ForkIn(BaseModel):
@@ -167,34 +166,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return resp
 
     # ---- settings: API keys -----------------------------------------------------
-    def keys_mode() -> str:
-        # "code": BATON_ADMIN_CODE unlocks changes. "open": a local/LAN server without an access code.
-        # "locked": a hosted server (access code set) with no admin code, so keys only change in server.env.
-        if settings.admin_code:
-            return "code"
-        return "locked" if settings.access_code else "open"
-
+    # Anyone who can reach the API (past the access code, when one is set) can change keys.
     @app.get("/api/settings")
     async def get_settings(request: Request):
-        return {"keys": mgr(request).keys.view(), "mode": keys_mode()}
+        return {"keys": mgr(request).keys.view()}
 
     @app.put("/api/settings")
     async def put_settings(body: KeysIn, request: Request):
-        mode = keys_mode()
-        if mode == "locked":
-            raise HTTPException(403, "Keys can't be changed here on a hosted server unless BATON_ADMIN_CODE is set")
-        if mode == "code":
-            who = "admin:" + (request.client.host if request.client else "?")
-            if attempts.blocked(who):
-                raise HTTPException(429, "Too many wrong codes. Wait a few minutes and try again.")
-            if not hmac.compare_digest((body.admin_code or "").strip(), settings.admin_code or ""):
-                attempts.fail(who)
-                raise HTTPException(403, "That admin code isn't right")
         try:
             keys = mgr(request).update_keys(body.values)
         except ValueError as e:
             raise HTTPException(400, str(e)) from None
-        return {"keys": keys, "mode": mode}
+        return {"keys": keys}
 
     @app.exception_handler(CommandError)
     async def _cmd_err(_: Request, e: CommandError):

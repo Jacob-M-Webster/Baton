@@ -41,8 +41,8 @@ export const api = {
   deleteSession: (id: string, userId: string) =>
     req<{ ok: true }>(`/api/sessions/${id}?user_id=${encodeURIComponent(userId)}`, { method: "DELETE" }),
   settings: () => req<KeySettings>("/api/settings"),
-  saveKeys: (values: Record<string, string | null>, adminCode?: string) =>
-    req<KeySettings>("/api/settings", { method: "PUT", body: JSON.stringify({ values, admin_code: adminCode || null }) }),
+  saveKeys: (values: Record<string, string | null>) =>
+    req<KeySettings>("/api/settings", { method: "PUT", body: JSON.stringify({ values }) }),
   session: (id: string, userId?: string) =>
     req<{ session: Session & { participants: Participant[] }; catchup: CatchUp; comments: Comment[] }>(
       `/api/sessions/${id}${userId ? `?user_id=${encodeURIComponent(userId)}` : ""}`,

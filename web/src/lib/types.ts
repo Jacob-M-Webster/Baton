@@ -139,6 +139,4 @@ export interface KeyInfo {
 
 export interface KeySettings {
   keys: KeyInfo[];
-  // open: anyone can change keys (local server). code: the admin code is needed. locked: only in server.env.
-  mode: "open" | "code" | "locked";
 }

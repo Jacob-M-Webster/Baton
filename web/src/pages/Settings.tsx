@@ -1,21 +1,11 @@
 import { useEffect, useState } from "react";
 import clsx from "clsx";
-import { Check, KeyRound, Lock, ShieldAlert } from "lucide-react";
+import { Check, KeyRound } from "lucide-react";
 import { api } from "../lib/api";
 import type { KeyInfo, KeySettings } from "../lib/types";
 import { Button } from "../components/Button";
 import { ProviderGlyph, refreshModelCatalog } from "../components/ModelPicker";
 import { toast } from "../components/Toasts";
-
-const ADMIN = "baton:admin-code"; // kept for this tab only, so it isn't typed again for every key
-
-function storedAdmin(): string {
-  try {
-    return sessionStorage.getItem(ADMIN) || "";
-  } catch {
-    return "";
-  }
-}
 
 const HELP: Record<string, string> = {
   ANTHROPIC_API_KEY: "Claude models. console.anthropic.com → API keys.",
@@ -27,24 +17,17 @@ const HELP: Record<string, string> = {
 export function SettingsPage() {
   const [data, setData] = useState<KeySettings | null>(null);
   const [failed, setFailed] = useState(false);
-  const [admin, setAdmin] = useState(storedAdmin);
 
   useEffect(() => {
     api.settings().then(setData).catch(() => setFailed(true));
   }, []);
 
   const save = async (values: Record<string, string | null>) => {
-    const r = await api.saveKeys(values, admin);
-    try {
-      if (admin) sessionStorage.setItem(ADMIN, admin);
-    } catch {
-      /* private window */
-    }
+    const r = await api.saveKeys(values);
     setData(r);
     refreshModelCatalog();
   };
 
-  const locked = data?.mode === "locked";
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-[720px] px-4 pt-[10vh] pb-20 sm:px-6 md:px-10">
@@ -54,35 +37,10 @@ export function SettingsPage() {
         {failed && <p className="mt-10 text-sm text-danger">Couldn't load settings.</p>}
         {!data && !failed && <div className="mt-10 h-64 animate-pulse rounded-xl bg-sunken" />}
 
-        {data && locked && (
-          <div className="mt-6 flex gap-3 rounded-lg border border-attn/30 bg-attn-soft px-4 py-3 text-[13px] leading-relaxed text-ink-2">
-            <Lock className="mt-0.5 size-4 shrink-0 text-attn" />
-            <p>
-              Keys are locked on this server. Set them in <code className="font-mono text-[12px]">server.env</code>, or set{" "}
-              <code className="font-mono text-[12px]">BATON_ADMIN_CODE</code> to edit them here.
-            </p>
-          </div>
-        )}
-
-        {data?.mode === "code" && (
-          <label className="mt-6 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-panel px-4 py-3">
-            <ShieldAlert className="size-4 shrink-0 text-ink-3" />
-            <span className="text-[13px] text-ink-2">Admin code</span>
-            <input
-              type="password"
-              value={admin}
-              onChange={(e) => setAdmin(e.target.value)}
-              autoComplete="off"
-              placeholder="Needed to change keys"
-              className="h-8 min-w-0 flex-1 rounded-lg border border-line bg-canvas px-2.5 text-base outline-none focus:border-ink-3 sm:text-[13px]"
-            />
-          </label>
-        )}
-
         {data && (
           <div className="mt-6 overflow-hidden rounded-lg border border-line bg-panel">
             {data.keys.map((k, i) => (
-              <KeyRow key={k.name} info={k} first={i === 0} disabled={locked || (data.mode === "code" && !admin.trim())} save={save} />
+              <KeyRow key={k.name} info={k} first={i === 0} save={save} />
             ))}
           </div>
         )}
@@ -100,12 +58,10 @@ export function SettingsPage() {
 function KeyRow({
   info,
   first,
-  disabled,
   save,
 }: {
   info: KeyInfo;
   first: boolean;
-  disabled: boolean;
   save: (values: Record<string, string | null>) => Promise<void>;
 }) {
   const [value, setValue] = useState("");
@@ -160,18 +116,18 @@ function KeyRow({
           type="password"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          disabled={disabled || busy}
+          disabled={busy}
           autoComplete="off"
           spellCheck={false}
           aria-label={`New ${info.label} key`}
           placeholder={info.set ? "Paste a new key to replace it" : "Paste a key"}
           className="h-8 min-w-[200px] flex-1 rounded-lg border border-line bg-canvas px-2.5 font-mono text-base outline-none placeholder:font-sans focus:border-ink-3 disabled:opacity-50 sm:text-[12.5px]"
         />
-        <Button type="submit" variant="primary" disabled={disabled || busy || !value.trim()}>
+        <Button type="submit" variant="primary" disabled={busy || !value.trim()}>
           Save
         </Button>
         {info.source === "saved" && (
-          <Button type="button" variant="ghost" disabled={disabled || busy} onClick={() => run(null)}>
+          <Button type="button" variant="ghost" disabled={busy} onClick={() => run(null)}>
             Remove
           </Button>
         )}
