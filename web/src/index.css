@@ -237,3 +237,31 @@ input[type="range"].scrubber::-moz-range-thumb {
   border-radius: 2px;
   background: var(--ink);
 }
+
+/* Pitch deck: a stroke that draws itself in, connectors with events flowing along them, and a soft entrance. */
+.deck-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: deck-draw 0.9s 0.25s cubic-bezier(0.6, 0, 0.3, 1) forwards;
+}
+.deck-flow {
+  stroke-dasharray: 0.5 10;
+  stroke-linecap: round;
+  animation: deck-flow 1.4s linear infinite;
+}
+.deck-in {
+  animation: deck-in 0.45s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+@keyframes deck-draw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes deck-flow {
+  to { stroke-dashoffset: -21; }
+}
+@keyframes deck-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .deck-draw { stroke-dashoffset: 0; }
+}

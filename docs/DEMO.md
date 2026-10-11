@@ -24,7 +24,7 @@ the second laptop. Total stage time: about 4 minutes (1 minute of slides, 3 minu
 
 | Time | Who | Do | Say |
 |---|---|---|---|
-| 0:00 | Alice | Slides 1–3 with arrow keys | "Agents are single-player. The work lives in one person's terminal; nobody else can see it, steer it, or pick it up when they log off. Baton makes an agent's work a shared, live object." |
+| 0:00 | Alice | Slides 1–2 behind you (arrow keys or click; **F** for full screen) | "Agents are single-player. The work lives in one person's terminal; nobody else can see it, steer it, or pick it up when they log off. Baton makes an agent's work a shared, live object." |
 | 0:50 | Alice | Last slide, **Start the live demo**, type *"Build a small notes API with rate limiting, and write tests."*, then **Start session** | "I'm asking an agent to build a small API with rate limiting, starting from an empty repo. It runs on the server, not on my laptop." |
 | 1:05 | Alice | Point at the plan and the files appearing | "Everything it does is an event in a shared log: every token, every tool call, every file it writes." |
 | 1:15 | Bob | Opens the session from the sidebar, or scans the QR in **Share** | "I'm joining late. Instead of scrolling a transcript, I get a catch-up card: the goal, what's done, and that it's about to ask us something." |
@@ -99,6 +99,7 @@ and print the join link with `./deploy/lightsail/ctl.sh url`.
       and link include the access code.
 - [ ] The deck's last slide (`/pitch`) shows a QR code for the newest live session. Start the demo
       session before you reach that slide.
+- [ ] Keep the comparison, architecture, pricing and business slides for questions: `/pitch?slide=3` through `?slide=6`.
 
 Optional beat (adds 45 s, after the hand-off): *"You can steer it too."* Show the QR code. Judges scan,
 type a name, and land in the session with a status strip and one-tap prompts. Their messages arrive as
