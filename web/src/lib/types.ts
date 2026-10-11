@@ -15,7 +15,7 @@ export interface Session {
   fork_seq: number | null;
   provider: string;
   model: string;
-  config: { repo?: string };
+  config: { repo?: string; open_floor?: boolean };
 }
 
 export interface Participant {
@@ -28,6 +28,7 @@ export interface Participant {
   typing: boolean;
   viewing_seq: number | null;
   focus_seq: number | null;
+  file: string | null; // open in the code view
   last_seen_seq: number;
   last_active: number;
 }
@@ -105,6 +106,20 @@ export interface ProviderInfo {
   configured: boolean;
   note: string;
   base_url: string | null;
+}
+
+export interface WorkspaceFile {
+  path: string;
+  state: "added" | "modified" | "same";
+  size: number;
+}
+
+export interface FileContent {
+  path: string;
+  content: string;
+  diff: string; // against the repository as the session started
+  original: string | null; // null for files created during the session
+  hash: string; // fingerprint the server checks on save, to catch edits made underneath you
 }
 
 export interface User {

@@ -27,7 +27,9 @@ from .db import DB, new_id
 from .hub import Hub
 from .providers import build_provider
 from .providers.base import ProviderError
-from .sandbox import CONTROL_TOOLS, TOOL_SPECS, Workspace, execute_tool, replay_file_changes
+from .sandbox import (
+    CONTROL_TOOLS, TOOL_SPECS, ToolError, Workspace, content_hash, execute_tool, replay_file_changes,
+)
 
 log = logging.getLogger("baton")
 
@@ -35,6 +37,8 @@ COLORS = ["#2563eb", "#db2777", "#059669", "#d97706", "#7c3aed", "#0891b2", "#dc
 ACTIVE = {"running"}
 MAX_AUTONOMOUS_TURNS = 60
 EXTERNAL = "external"  # provider id for sessions driven by an agent running elsewhere
+MAX_EDIT_CHARS = 400_000  # a hand edit is stored whole in the log so forks and audits can replay it
+MAX_COMMAND_CHARS = 2_000
 
 # What an external agent may write into its session, and what it reads back from its inbox.
 INGEST_TYPES = {"agent.text", "agent.thinking", "tool.call", "tool.result", "agent.plan", "agent.decision_point", "agent.turn"}
@@ -55,6 +59,7 @@ class SessionManager:
         self._catchup_cache: dict[str, dict] = {}
         self._catchup_jobs: dict[str, asyncio.Task] = {}
         self._bg: set[asyncio.Task] = set()
+        self.terminals: dict[str, tuple[asyncio.Task, asyncio.Task]] = {}  # session -> (work, record) of a terminal command
 
     # ---- helpers ---------------------------------------------------------
     def workspace(self, session_id: str) -> Workspace:
@@ -91,7 +96,7 @@ class SessionManager:
                 "user_id": p["user_id"], "name": p["name"], "color": p["color"], "role": p["role"],
                 "is_owner": bool(s and s["created_by"] == p["user_id"]),
                 "online": bool(live.get("online")), "typing": bool(live.get("typing")),
-                "viewing_seq": live.get("viewing_seq"), "focus_seq": live.get("focus_seq"),
+                "viewing_seq": live.get("viewing_seq"), "focus_seq": live.get("focus_seq"), "file": live.get("file"),
                 "last_seen_seq": p["last_seen_seq"],
                 "last_active": p["last_active"],
             })
@@ -165,9 +170,20 @@ class SessionManager:
         """On boot, pick every unfinished session back up from its log."""
         n = 0
         for s in self.db.list_sessions():
-            if s["status"] in ("done",) or s["provider"] == EXTERNAL:
+            if s["provider"] == EXTERNAL:
                 continue
             events = self.db.events(s["id"])
+            # A command someone was running in the terminal died with the server; say so.
+            finished = {e["payload"]["call_id"] for e in events if e["type"] == "human.command_result"}
+            for e in events:
+                if e["type"] == "human.command" and e["payload"]["call_id"] not in finished:
+                    self.append(s["id"], e["actor"], "human.command_result", {
+                        "call_id": e["payload"]["call_id"], "command": e["payload"]["command"],
+                        "output": "The server restarted while this command was running; it did not complete.",
+                        "is_error": True, "cancelled": True, "duration_ms": 0,
+                    })
+            if s["status"] == "done":
+                continue
             calls = {e["payload"]["call_id"]: e for e in events if e["type"] == "tool.call"}
             results = {e["payload"]["call_id"] for e in events if e["type"] == "tool.result"}
             decisions = {e["payload"]["call_id"] for e in events if e["type"] == "agent.decision_point"}
@@ -184,6 +200,11 @@ class SessionManager:
         return n
 
     async def shutdown(self) -> None:
+        terminals = list(self.terminals.values())
+        for work, _ in terminals:
+            work.cancel()
+        # Let them record that they were stopped while the log is still open.
+        await asyncio.gather(*(record for _, record in terminals), return_exceptions=True)
         for r in list(self.runners.values()):
             await r.stop()
         for t in list(self._bg):
@@ -273,12 +294,24 @@ class SessionManager:
                 raise CommandError("Only the driver can do that. Request control first.")
 
         if kind == "steer":
-            require_driver()
+            # On an open floor (say, judges on their phones) collaborators steer directly; otherwise only the driver.
+            open_floor = bool(s["config"].get("open_floor")) and part["role"] == "collaborator"
+            if not open_floor:
+                require_driver()
             text = (msg.get("text") or "").strip()
             if not text:
                 return
-            self.append(session_id, user_id, "human.message", {"text": text, "mode": "steer"})
+            self.append(session_id, user_id, "human.message",
+                        {"text": text[:4000], "mode": "steer", **({"open_floor": True} if not is_driver else {})})
             self._after_steer(session_id)
+        elif kind == "set_open_floor":
+            require_driver()
+            on = bool(msg.get("on"))
+            if bool(s["config"].get("open_floor")) == on:
+                return
+            self.db.update_session(session_id, config={**s["config"], "open_floor": on})
+            self.append(session_id, user_id, "control.open_floor", {"on": on})
+            self.broadcast_session(session_id)
         elif kind == "suggest":
             if part["role"] == "viewer":
                 raise CommandError("Viewers can comment but not suggest")
@@ -358,8 +391,85 @@ class SessionManager:
             if title:
                 self.db.update_session(session_id, title=title)
                 self.broadcast_session(session_id)
+        elif kind == "save_file":
+            require_driver()
+            self._save_file(s, user_id, msg)
+        elif kind == "run_command":
+            require_driver()
+            self._run_command(s, user_id, msg)
+        elif kind == "stop_command":
+            require_driver()
+            running = self.terminals.get(session_id)
+            if running:
+                running[0].cancel()
         else:
             raise CommandError(f"Unknown command: {kind}")
+
+    # ---- the IDE: hand edits and the terminal --------------------------------
+    def _workspace_for(self, s: dict) -> Workspace:
+        if s["provider"] == EXTERNAL:
+            raise CommandError("This session's agent runs elsewhere, so there is no workspace to edit here")
+        ws = self.workspace(s["id"])
+        if not ws.root.exists():
+            raise CommandError("This session has no workspace")
+        return ws
+
+    def _save_file(self, s: dict, user_id: str, msg: dict) -> None:
+        """The driver saves a file from the editor. The edit is an event, so it's attributed, replayable and
+        forkable, and the agent reads it at its next turn like any other human input."""
+        ws = self._workspace_for(s)
+        path = str(msg.get("path") or "").strip().replace("\\", "/").lstrip("/")
+        content = msg.get("content")
+        if not path or not isinstance(content, str):
+            raise CommandError("Bad save: a path and the file's content are required")
+        if len(content) > MAX_EDIT_CHARS:
+            raise CommandError("That file is too large to save from the editor")
+        try:
+            current = ws.read_text(path)
+            base = msg.get("base")
+            # `base` is the fingerprint of the text the editor started from; None means "creating a new file".
+            if not msg.get("force") and base is not None and content_hash(current) != base:
+                raise CommandError(f"{path} changed since you opened it. Reload it, or save anyway to overwrite.")
+            if current == content:
+                return
+            _, diff = ws.write_file(path, content)
+        except ToolError as e:
+            raise CommandError(str(e)) from e
+        self.append(s["id"], user_id, "human.edit", {
+            "path": path, "content": content, "diff": diff, "created": current is None, "hash": content_hash(content),
+        })
+
+    def _run_command(self, s: dict, user_id: str, msg: dict) -> None:
+        """The driver runs a command in the session's terminal, in the same workspace the agent uses."""
+        ws = self._workspace_for(s)
+        command = str(msg.get("command") or "").strip()
+        if not command:
+            return
+        if len(command) > MAX_COMMAND_CHARS:
+            raise CommandError("That command is too long")
+        if s["id"] in self.terminals:
+            raise CommandError("A command is already running in the terminal. Wait for it, or stop it.")
+        call_id = "cmd_" + new_id()
+        self.append(s["id"], user_id, "human.command", {"call_id": call_id, "command": command})
+        # stop_command cancels `work`; `record` always writes the outcome, even if work never got to start.
+        work = asyncio.create_task(execute_tool(ws, "run_command", {"command": command, "timeout_seconds": 120}))
+
+        async def record() -> None:
+            await asyncio.wait({work})
+            self.terminals.pop(s["id"], None)
+            if work.cancelled():
+                res = {"output": "", "is_error": True, "cancelled": True, "duration_ms": 0}
+            else:
+                res = work.result()
+            full = res.pop("full_output", None)
+            if full is not None:
+                blob = self.settings.data_dir / "blobs" / s["id"] / f"{call_id}.txt"
+                blob.parent.mkdir(parents=True, exist_ok=True)
+                blob.write_text(full, encoding="utf-8")
+                res["truncated"] = True
+            self.append(s["id"], user_id, "human.command_result", {"call_id": call_id, "command": command, **res})
+
+        self.terminals[s["id"]] = (work, self.spawn(record()))
 
     def _after_steer(self, session_id: str) -> None:
         s = self.db.get_session(session_id)
@@ -708,6 +818,8 @@ class Runner:
         for c in calls:
             mgr.append(self.sid, "agent", "tool.call", {
                 "call_id": c["id"], "name": c["name"], "input": c.get("input") or {}, "turn": turn,
+                # Gemini 3 wants its signature back on this call; only the model that made it can use it.
+                **({"signature": {"model": s["model"], "value": c["signature"]}} if c.get("signature") else {}),
             })
         self._end_turn(turn, s, meta, t0)
         if calls and meta.get("stop_reason") in ("max_tokens", "length"):
@@ -745,7 +857,7 @@ class Runner:
             if full is not None:
                 blob = mgr.settings.data_dir / "blobs" / self.sid / f"{c['id']}.txt"
                 blob.parent.mkdir(parents=True, exist_ok=True)
-                blob.write_text(full)
+                blob.write_text(full, encoding="utf-8")
                 res["truncated"] = True
             mgr.append(self.sid, "agent", "tool.result", {"call_id": c["id"], **res})
             if self.interrupted_by:

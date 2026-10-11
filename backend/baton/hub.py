@@ -13,6 +13,7 @@ class Conn:
     queue: asyncio.Queue = field(default_factory=lambda: asyncio.Queue(maxsize=5000))
     viewing_seq: int | None = None  # scrubbed back to this step
     focus_seq: int | None = None  # scrolled up and reading this step
+    file: str | None = None  # file open in the code view
     typing_until: float = 0.0
     connected_at: float = field(default_factory=time.time)
     overflowed: bool = False
@@ -58,13 +59,15 @@ class Hub:
         now = time.time()
         out: dict[str, dict] = {}
         for c in self.conns.get(session_id, ()):
-            p = out.setdefault(c.user_id, {"online": True, "typing": False, "viewing_seq": None, "focus_seq": None, "tabs": 0})
+            p = out.setdefault(c.user_id, {"online": True, "typing": False, "viewing_seq": None, "focus_seq": None, "file": None, "tabs": 0})
             p["tabs"] += 1
             p["typing"] = p["typing"] or c.typing_until > now
             if c.viewing_seq is not None:
                 p["viewing_seq"] = c.viewing_seq
             if c.focus_seq is not None:
                 p["focus_seq"] = c.focus_seq
+            if c.file is not None:
+                p["file"] = c.file
         return out
 
     # ---- streaming partials --------------------------------------------

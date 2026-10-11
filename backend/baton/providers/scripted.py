@@ -21,7 +21,7 @@ from .base import ProviderError, StreamEvent
 TEST_CMD = "python -m unittest -v"
 UNSUPPORTED = (
     "I'm the offline demo model. I can only run the rehearsed task (adding rate limiting to notes-api), so I "
-    "won't pretend to do this one. Switch this session to Claude, an OpenAI model or a local model from the "
+    "won't pretend to do this one. Switch this session to Claude, Gemini, an OpenAI model or a local model from the "
     "model menu, and the next turn picks up from here."
 )
 
@@ -220,7 +220,7 @@ class ScriptedProvider:
         # Past the end of the script: acknowledge and hand control back.
         return (
             "I'm the offline demo model, so I can only run the rehearsed rate-limiting task. Switch this "
-            "session to Claude, an OpenAI model, or a local model from the model menu and I'll pick up from here "
+            "session to Claude, Gemini, an OpenAI model, or a local model from the model menu and I'll pick up from here "
             "with the full history.",
             "",
             None,
@@ -250,7 +250,8 @@ class _State:
                         ask_ids.add(b["id"])
                 elif b["type"] == "tool_result" and b["id"] in ask_ids:
                     self.answer = b["output"]
-                elif b["type"] == "text" and m["role"] == "user" and i > 0:
+                elif b["type"] == "text" and m["role"] == "user" and i > 0 and not _WORKSPACE_NOTE.match(b["text"]):
+                    # Hand edits and terminal runs aren't instructions; their diffs and output shouldn't steer the script.
                     self.human.append(_author(b["text"]))
         last = messages[-1] if messages else None
         if last and last["role"] == "user" and len(messages) > 1:
@@ -290,6 +291,13 @@ class _State:
     def acknowledgement(self, skip_deprecated: bool = False) -> str:
         notes = []
         for who, text in self.trailing:
+            m = _WORKSPACE_NOTE.match(text)
+            if m and m.group("verb"):
+                notes.append(f"Noted, {m.group('who')} {m.group('verb')} `{m.group('path')}` by hand; I'll work from your version.")
+                continue
+            if m:
+                notes.append(f"I see {m.group('who')} ran `{_clip(m.group('cmd'), 60)}` in the terminal.")
+                continue
             if skip_deprecated and re.search(r"deprecat|legacy|adr", text, re.I):
                 continue
             if text.startswith("(") or not text.strip():
@@ -298,7 +306,16 @@ class _State:
         return "\n".join(notes)
 
 
+# How hand edits and terminal runs from the code view read in the conversation (see context.py).
+_WORKSPACE_NOTE = re.compile(
+    r"\[(?P<who>.+?) (?:(?P<verb>edited|created) (?P<path>\S+) by hand in the editor"
+    r"|ran `(?P<cmd>.*?)` in the terminal)"
+)
+
+
 def _author(text: str) -> tuple[str, str]:
+    if _WORKSPACE_NOTE.match(text):
+        return ("", text)  # keep the whole note; acknowledgement() recognizes it
     m = re.match(r"\[([^,\]]+)[^\]]*\]:\s*(.*)", text, re.S)
     return (m.group(1), m.group(2)) if m else ("you", text)
 

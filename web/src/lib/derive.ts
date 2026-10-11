@@ -10,6 +10,8 @@ export type Item =
   | { kind: "decision"; seq: number; call: BatonEvent; point?: BatonEvent; answer?: BatonEvent }
   | { kind: "finish"; seq: number; call: BatonEvent; summary: string }
   | { kind: "human"; seq: number; ev: BatonEvent; promotedBy?: BatonEvent; dismissed?: BatonEvent }
+  | { kind: "edit"; seq: number; ev: BatonEvent }
+  | { kind: "command"; seq: number; ev: BatonEvent; result?: BatonEvent }
   | { kind: "request"; seq: number; ev: BatonEvent; resolved?: BatonEvent }
   | { kind: "system"; seq: number; ev: BatonEvent }
   | { kind: "error"; seq: number; ev: BatonEvent };
@@ -54,6 +56,7 @@ const SYSTEM = new Set([
   "session.forked",
   "agent.checkpoint",
   "control.driver_declined",
+  "control.open_floor",
 ]);
 
 /** Fold the flat event log into timeline items. Pure, so the scrubber can call it with a prefix. */
@@ -113,6 +116,20 @@ export function buildItems(events: BatonEvent[]): Item[] {
           const src = bySeq.get(from.seq);
           if (src && src.kind === "human") src.promotedBy = ev;
         }
+        break;
+      }
+      case "human.edit":
+        items.push({ kind: "edit", seq: ev.seq, ev });
+        break;
+      case "human.command": {
+        const it: Item = { kind: "command", seq: ev.seq, ev };
+        byCall.set(p.call_id, it);
+        items.push(it);
+        break;
+      }
+      case "human.command_result": {
+        const it = byCall.get(p.call_id);
+        if (it && it.kind === "command") it.result = ev;
         break;
       }
       case "human.suggestion_dismissed": {
@@ -193,9 +210,12 @@ export function stats(events: BatonEvent[]): Stats {
     } else if (
       (e.type === "human.message" && e.payload.mode === "steer") ||
       e.type === "human.decision" ||
-      e.type === "human.interrupt"
+      e.type === "human.interrupt" ||
+      e.type === "human.edit" ||
+      e.type === "human.command"
     ) {
       s.interventions++;
+      if (e.type === "human.edit") files.add(e.payload.path);
     } else if (e.type === "session.status" && e.payload.status === "done") {
       s.ended = e.ts;
     }
@@ -205,11 +225,102 @@ export function stats(events: BatonEvent[]): Stats {
   return s;
 }
 
+/* ---------------------------------------------------------------- the code view */
+
+const FILE_VERBS: Record<string, FileActivity["verb"]> = { read_file: "reading", write_file: "writing", edit_file: "editing" };
+
+export interface FileActivity {
+  path: string;
+  verb: "reading" | "writing" | "editing";
+}
+
+/** The file the agent is working on right now: one it's still writing out, or a file call still running. */
+export function agentFile(events: BatonEvent[], drafting?: { name: string; target: string } | null): FileActivity | null {
+  if (drafting?.target && (drafting.name === "write_file" || drafting.name === "edit_file")) {
+    return { path: drafting.target, verb: FILE_VERBS[drafting.name] };
+  }
+  // A turn appends all its calls first and then runs them in order, so the earliest unfinished one is running.
+  const finished = new Set<string>();
+  let running: FileActivity | null = null;
+  for (let i = events.length - 1; i >= 0 && i >= events.length - 60; i--) {
+    const e = events[i];
+    if (e.type === "tool.result") finished.add(e.payload.call_id);
+    else if (e.type === "tool.call" && !finished.has(e.payload.call_id) && FILE_VERBS[e.payload.name] && e.payload.input?.path) {
+      running = { path: String(e.payload.input.path), verb: FILE_VERBS[e.payload.name] };
+    }
+  }
+  return running;
+}
+
+/** Who last changed each file, the agent or a person, and at which step. */
+export function lastWriters(events: BatonEvent[]): Record<string, { actor: string; seq: number }> {
+  const out: Record<string, { actor: string; seq: number }> = {};
+  const calls = new Map<string, BatonEvent>();
+  for (const e of events) {
+    if (e.type === "tool.call") calls.set(e.payload.call_id, e);
+    else if (e.type === "tool.result" && !e.payload.is_error) {
+      const c = calls.get(e.payload.call_id);
+      const name = c?.payload.name;
+      if (c && (name === "write_file" || name === "edit_file") && c.payload.input?.path) {
+        out[String(c.payload.input.path)] = { actor: "agent", seq: c.seq };
+      }
+    } else if (e.type === "human.edit") {
+      out[e.payload.path] = { actor: e.actor, seq: e.seq };
+    }
+  }
+  return out;
+}
+
+export interface Run {
+  seq: number;
+  actor: string; // "agent" or the person who ran it
+  command: string;
+  running: boolean;
+  output: string;
+  exitCode?: number;
+  cancelled: boolean;
+}
+
+/** Everything that ran in the workspace, by the agent or in the terminal, oldest first. */
+export function workspaceRuns(events: BatonEvent[]): Run[] {
+  const runs: Run[] = [];
+  const byCall = new Map<string, Run>();
+  for (const e of events) {
+    const p = e.payload;
+    if ((e.type === "tool.call" && p.name === "run_command") || e.type === "human.command") {
+      const r: Run = {
+        seq: e.seq, actor: e.type === "tool.call" ? "agent" : e.actor, running: true, output: "", cancelled: false,
+        command: String(e.type === "tool.call" ? p.input?.command ?? "" : p.command),
+      };
+      byCall.set(p.call_id, r);
+      runs.push(r);
+    } else if (e.type === "tool.result" || e.type === "human.command_result") {
+      const r = byCall.get(p.call_id);
+      if (!r) continue;
+      r.running = false;
+      r.cancelled = !!p.cancelled;
+      r.exitCode = p.exit_code;
+      r.output = String(p.output || "").replace(/\n?\[exit code -?\d+\]\s*$/, "");
+    }
+  }
+  return runs;
+}
+
+/** Bumps whenever something may have changed files in the workspace, so file lists know to refresh. */
+export function workspaceVersion(events: BatonEvent[]): number {
+  let n = 0;
+  for (const e of events) if (e.type === "tool.result" || e.type === "human.edit" || e.type === "human.command_result") n++;
+  return n;
+}
+
 /** Marks for the scrubber track: where humans stepped in, decisions, errors. */
 export function marks(events: BatonEvent[]) {
   return events
     .filter((e) =>
-      ["human.message", "human.decision", "human.interrupt", "agent.decision_point", "control.driver_changed", "session.error", "control.model_changed"].includes(e.type),
+      [
+        "human.message", "human.decision", "human.interrupt", "human.edit", "human.command", "agent.decision_point",
+        "control.driver_changed", "session.error", "control.model_changed",
+      ].includes(e.type),
     )
     .map((e) => ({ seq: e.seq, type: e.type, actor: e.actor, mode: e.payload.mode as string | undefined }));
 }

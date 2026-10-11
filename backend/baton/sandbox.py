@@ -8,10 +8,13 @@ from __future__ import annotations
 
 import asyncio
 import difflib
+import functools
+import hashlib
 import os
 import re
 import shutil
 import signal
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -22,6 +25,7 @@ SAMPLE_REPOS = ROOT / "sample-repos"
 MAX_OUTPUT = 12_000
 MAX_DIFF = 16_000
 SKIP_DIRS = {".git", "__pycache__", "node_modules", ".pytest_cache", ".venv"}
+WINDOWS = os.name == "nt"
 
 
 class ToolError(Exception):
@@ -141,7 +145,11 @@ CONTROL_TOOLS = {"update_plan", "ask_humans", "finish"}
 # mode for that); it stops the obvious foot-guns from ever running during a live session.
 BLOCKED_COMMANDS = [
     (re.compile(r"(^|[;&|]\s*)sudo\b"), "sudo is not available in the sandbox"),
-    (re.compile(r"\brm\s+(-\w*\s+)*-\w*[rf]\w*\s+(-\w+\s+)*(/|~|\$HOME)(\s|$|/\*)"), "refusing to delete outside the repository"),
+    (re.compile(r"\brm\s+(-\w*\s+)*-\w*[rf]\w*\s+(-\w+\s+)*(/|~|\$HOME|/[a-zA-Z]/?|[a-zA-Z]:[\\/]?)(\s|$|/\*)"),
+     "refusing to delete outside the repository"),
+    (re.compile(r"(?i)\b(rd|rmdir|del|erase)\b[^&|;]*\s/[sq]\b[^&|;]*\s([a-z]:\\?|%userprofile%|%systemroot%|%homedrive%)(\s|$)"),
+     "refusing to delete outside the repository"),
+    (re.compile(r"(?i)\bformat\s+[a-z]:"), "system commands are not allowed"),
     (re.compile(r":\(\)\s*\{\s*:\|:&\s*\};:"), "fork bombs are not allowed"),
     (re.compile(r"\b(curl|wget)\b[^|]*\|\s*(ba|z)?sh\b"), "piping downloads into a shell is not allowed"),
     (re.compile(r"\b(mkfs|shutdown|reboot)\b"), "system commands are not allowed"),
@@ -156,10 +164,25 @@ def list_sample_repos() -> list[dict]:
                 readme = d / "README.md"
                 desc = ""
                 if readme.exists():
-                    lines = [l.strip() for l in readme.read_text().splitlines() if l.strip() and not l.startswith("#")]
+                    lines = [l.strip() for l in read_text_file(readme).splitlines() if l.strip() and not l.startswith("#")]
                     desc = lines[0] if lines else ""
                 out.append({"id": d.name, "description": desc})
     return out
+
+
+def read_text_file(p: Path) -> str:
+    """Repository files are UTF-8, whatever the platform's default encoding is."""
+    return p.read_text(encoding="utf-8", errors="replace")
+
+
+def write_text_file(p: Path, content: str) -> None:
+    # newline="" writes exactly what was given: no \r\n translation on Windows.
+    p.write_text(content, encoding="utf-8", newline="")
+
+
+def content_hash(text: str | None) -> str:
+    """A short fingerprint of a file's text, so an editor can tell when it changed underneath it."""
+    return "" if text is None else hashlib.sha1(text.encode("utf-8", "replace")).hexdigest()[:16]
 
 
 def truncate(text: str, limit: int = MAX_OUTPUT) -> tuple[str, bool]:
@@ -194,7 +217,7 @@ class Workspace:
         return p
 
     def rel(self, p: Path) -> str:
-        return str(p.relative_to(self.root.resolve()))
+        return p.relative_to(self.root.resolve()).as_posix()
 
     # ---- file tools -----------------------------------------------------
     def list_files(self, path: str = ".") -> str:
@@ -218,7 +241,7 @@ class Workspace:
         p = self.resolve(path)
         if not p.is_file():
             raise ToolError(f"no such file: {path}")
-        lines = p.read_text(errors="replace").splitlines()
+        lines = read_text_file(p).splitlines()
         s = max(1, start_line or 1)
         e = min(len(lines), end_line or len(lines))
         body = "\n".join(f"{i:>4}  {lines[i - 1]}" for i in range(s, e + 1))
@@ -226,14 +249,16 @@ class Workspace:
 
     def read_text(self, path: str) -> str | None:
         p = self.resolve(path)
-        return p.read_text(errors="replace") if p.is_file() else None
+        return read_text_file(p) if p.is_file() else None
 
     def write_file(self, path: str, content: str) -> tuple[str, str]:
         p = self.resolve(path)
-        before = p.read_text(errors="replace") if p.is_file() else ""
+        if p.is_dir():
+            raise ToolError(f"{path} is a directory")
+        before = read_text_file(p) if p.is_file() else ""
         existed = p.is_file()
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content)
+        write_text_file(p, content)
         diff = make_diff(path, before, content)
         verb = "Updated" if existed else "Created"
         return f"{verb} {path} ({len(content.splitlines())} lines)", diff
@@ -242,48 +267,44 @@ class Workspace:
         p = self.resolve(path)
         if not p.is_file():
             raise ToolError(f"no such file: {path}")
-        before = p.read_text(errors="replace")
+        before = read_text_file(p)
         n = before.count(old_str)
         if n == 0:
             raise ToolError("old_str was not found in the file; read the file and copy the text exactly")
         if n > 1:
             raise ToolError(f"old_str matches {n} places; include more surrounding context")
         after = before.replace(old_str, new_str, 1)
-        p.write_text(after)
+        write_text_file(p, after)
         return f"Edited {path}", make_diff(path, before, after)
 
     # ---- commands -------------------------------------------------------
     async def run_command(self, command: str, timeout: int = 60) -> tuple[str, int]:
         timeout = max(1, min(int(timeout or 60), 300))
         if self.runtime in ("docker", "podman"):
+            # Run as the server's user so files the agent creates stay editable by Baton (Windows has no uid).
+            user = ["--user", f"{os.getuid()}:{os.getgid()}"] if self.runtime == "docker" and hasattr(os, "getuid") else []
             argv = [
                 self.runtime, "run", "--rm", "--network", "none", "-v", f"{self.root.resolve()}:/workspace",
                 "-w", "/workspace", "-e", "PYTHONDONTWRITEBYTECODE=1", "-e", "HOME=/tmp",
-                # Run as the server's user so files the agent creates stay editable by Baton.
-                *(["--user", f"{os.getuid()}:{os.getgid()}"] if self.runtime == "docker" else []),
-                self.image, "sh", "-lc", command,
+                *user, self.image, "sh", "-lc", command,
             ]
             proc = await asyncio.create_subprocess_exec(
-                *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, start_new_session=True
+                *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, start_new_session=not WINDOWS
             )
         else:
-            env = {
-                # Put this interpreter first so `python` is a modern Python; keep no secrets.
-                "PATH": f"{Path(sys.executable).parent}:/usr/local/bin:/usr/bin:/bin",
-                "HOME": str(self.root.resolve()),
-                "LANG": "C.UTF-8",
-                "PYTHONDONTWRITEBYTECODE": "1",
-                "PYTHONUNBUFFERED": "1",
-                "TERM": "dumb",
-            }
-            proc = await asyncio.create_subprocess_shell(
-                command,
-                cwd=self.root,
-                env=env,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
-                start_new_session=True,
-            )
+            env = local_env(self.root.resolve())
+            bash = git_bash() if WINDOWS else None
+            if bash:
+                # Agents write POSIX shell. On Windows, Git for Windows' bash runs it as written.
+                proc = await asyncio.create_subprocess_exec(
+                    bash, "-c", command, cwd=self.root, env=env,
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+                )
+            else:
+                proc = await asyncio.create_subprocess_shell(
+                    command, cwd=self.root, env=env,
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, start_new_session=not WINDOWS,
+                )
         try:
             out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         except asyncio.TimeoutError:
@@ -293,7 +314,7 @@ class Workspace:
         except asyncio.CancelledError:
             _kill(proc)
             raise
-        return out.decode(errors="replace"), proc.returncode or 0
+        return out.decode("utf-8", errors="replace").replace("\r\n", "\n"), proc.returncode or 0
 
     def snapshot(self) -> dict[str, str]:
         files = {}
@@ -303,11 +324,67 @@ class Workspace:
                 fp = Path(dirpath) / f
                 if f.endswith(".pyc") or fp.stat().st_size > 200_000:
                     continue
-                files[str(fp.relative_to(self.root))] = fp.read_text(errors="replace")
+                files[fp.relative_to(self.root).as_posix()] = read_text_file(fp)
         return files
 
 
+def local_env(home: Path) -> dict[str, str]:
+    """A scrubbed environment for local commands: this Python first on PATH, and no secrets."""
+    here = str(Path(sys.executable).parent)
+    if not WINDOWS:
+        return {
+            "PATH": os.pathsep.join([here, "/usr/local/bin", "/usr/bin", "/bin"]),
+            "HOME": str(home),
+            "LANG": "C.UTF-8",
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "PYTHONUNBUFFERED": "1",
+            "TERM": "dumb",
+        }
+    sysroot = os.environ.get("SYSTEMROOT", r"C:\Windows")
+    path = [here, str(Path(here) / "Scripts")]
+    bash = git_bash()
+    if bash:
+        git = Path(bash).parent.parent
+        path += [str(git / "usr" / "bin"), str(git / "mingw64" / "bin")]
+    path += [str(Path(sysroot) / "System32"), sysroot]
+    # Windows programs (Python included) need a few system variables to start at all.
+    keep = ("SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "SYSTEMDRIVE", "TEMP", "TMP", "NUMBER_OF_PROCESSORS",
+            "PROCESSOR_ARCHITECTURE")
+    env = {k: os.environ[k] for k in keep if k in os.environ}
+    env.update({
+        "PATH": os.pathsep.join(path),
+        "HOME": str(home),
+        "USERPROFILE": str(home),
+        "LANG": "C.UTF-8",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONIOENCODING": "utf-8",
+        "TERM": "dumb",
+    })
+    return env
+
+
+@functools.cache
+def git_bash() -> str | None:
+    """Git for Windows' bash.exe if installed. Never WSL's bash, which runs in a different filesystem."""
+    override = os.environ.get("BATON_BASH")
+    if override and Path(override).is_file():
+        return override
+    candidates: list[Path] = []
+    git = shutil.which("git")
+    if git:
+        candidates += [parent / "bin" / "bash.exe" for parent in Path(git).resolve().parents]
+    for base in (os.environ.get("ProgramFiles"), os.environ.get("ProgramW6432"), os.environ.get("LOCALAPPDATA")):
+        if base:
+            candidates += [Path(base) / "Git" / "bin" / "bash.exe", Path(base) / "Programs" / "Git" / "bin" / "bash.exe"]
+    return next((str(c) for c in candidates if c.is_file()), None)
+
+
 def _kill(proc: asyncio.subprocess.Process) -> None:
+    if WINDOWS:
+        # Kill the whole tree (bash, then python, then whatever it started), not just the shell.
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
+        return
     try:
         os.killpg(proc.pid, signal.SIGKILL)
     except (ProcessLookupError, PermissionError):
@@ -362,10 +439,18 @@ async def execute_tool(ws: Workspace, name: str, args: dict) -> dict:
 
 
 def replay_file_changes(ws: Workspace, events: list[dict]) -> int:
-    """Re-apply successful write_file/edit_file calls from a log onto a fresh workspace (forks)."""
+    """Re-apply the agent's successful write_file/edit_file calls, and people's hand edits from the editor,
+    from a log onto a fresh workspace (forks)."""
     calls = {e["payload"]["call_id"]: e["payload"] for e in events if e["type"] == "tool.call"}
     applied = 0
     for e in events:
+        if e["type"] == "human.edit":
+            try:
+                ws.write_file(e["payload"]["path"], e["payload"]["content"])
+                applied += 1
+            except (ToolError, KeyError, OSError):
+                pass
+            continue
         if e["type"] != "tool.result" or e["payload"].get("is_error") or e["payload"].get("cancelled"):
             continue
         call = calls.get(e["payload"]["call_id"])

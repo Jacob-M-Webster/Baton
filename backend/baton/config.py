@@ -13,7 +13,7 @@ def _load_dotenv() -> None:
     env = ROOT / ".env"
     if not env.exists():
         return
-    for line in env.read_text().splitlines():
+    for line in env.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -31,7 +31,7 @@ class ProviderConfig:
 
     id: str
     label: str
-    kind: str  # "anthropic" | "openai" | "scripted"
+    kind: str  # "anthropic" | "openai" | "gemini" | "scripted"
     models: list[str]
     api_key: str | None = None
     base_url: str | None = None
@@ -55,6 +55,7 @@ class Settings:
     keep_recent_turns: int
     slack_webhook: str | None
     providers: list[ProviderConfig] = field(default_factory=list)
+    access_code: str | None = None  # when set, the API needs this shared code (see access.py)
 
     def provider(self, pid: str) -> ProviderConfig | None:
         return next((p for p in self.providers if p.id == pid), None)
@@ -84,6 +85,18 @@ def load_settings(**overrides) -> Settings:
             context_window=int(os.environ.get("OPENAI_CONTEXT_WINDOW", "128000")),
         ),
         ProviderConfig(
+            id="gemini",
+            label="Google Gemini",
+            kind="gemini",
+            # With a key set, the menu lists every chat model the key can use; these come first.
+            models=_csv("GEMINI_MODELS", "gemini-3.8-flash,gemini-2.5-pro,gemini-2.5-flash"),
+            api_key=os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"),
+            base_url=os.environ.get("GEMINI_BASE_URL"),
+            summary_model=os.environ.get("GEMINI_SUMMARY_MODEL", "gemini-2.5-flash-lite"),
+            # Gemini takes far more, but compacting earlier keeps long sessions fast and cheap.
+            context_window=int(os.environ.get("GEMINI_CONTEXT_WINDOW", "200000")),
+        ),
+        ProviderConfig(
             id="local",
             label="Local",
             kind="openai",
@@ -100,7 +113,7 @@ def load_settings(**overrides) -> Settings:
     # Extra OpenAI- or Anthropic-compatible endpoints (OpenRouter, Groq, Bedrock gateways...).
     extra = os.environ.get("BATON_PROVIDERS_FILE", str(ROOT / "providers.json"))
     if Path(extra).exists():
-        for p in json.loads(Path(extra).read_text()):
+        for p in json.loads(Path(extra).read_text(encoding="utf-8")):
             providers.append(
                 ProviderConfig(
                     id=p["id"],
@@ -135,6 +148,7 @@ def load_settings(**overrides) -> Settings:
         checkpoint_every_turns=int(os.environ.get("BATON_CHECKPOINT_EVERY", "10")),
         keep_recent_turns=int(os.environ.get("BATON_KEEP_RECENT_TURNS", "6")),
         slack_webhook=os.environ.get("SLACK_WEBHOOK_URL") or None,
+        access_code=os.environ.get("BATON_ACCESS_CODE", "").strip() or None,
         providers=providers,
     )
     for k, v in overrides.items():

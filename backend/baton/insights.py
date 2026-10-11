@@ -10,6 +10,8 @@ KINDS = [
     ("promoted", "Sent a teammate's note"),
     ("decision", "Answered a decision"),
     ("interrupt", "Interrupted"),
+    ("edit", "Edited code by hand"),
+    ("command", "Ran a command"),
     ("handoff", "Handed off the baton"),
     ("model", "Switched models"),
 ]
@@ -23,6 +25,10 @@ def classify(ev: dict) -> str | None:
         return "decision"
     if t == "human.interrupt":
         return "interrupt"
+    if t == "human.edit":
+        return "edit"
+    if t == "human.command":
+        return "command"
     if t == "control.driver_changed" and p.get("from"):
         return "handoff"
     if t == "control.model_changed":

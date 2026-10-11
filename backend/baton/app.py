@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import logging
 import socket
@@ -14,13 +15,18 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
 from . import context as ctx
+from .access import COOKIE, AccessGate, Attempts, granted, token_for
 from .config import ROOT, Settings, load_settings
 from .hub import Conn
-from .sandbox import SAMPLE_REPOS, list_sample_repos
+from .sandbox import SAMPLE_REPOS, list_sample_repos, read_text_file
 from .sessions import CommandError, SessionManager
 
 log = logging.getLogger("baton")
 WEB_DIST = ROOT / "web" / "dist"
+
+
+class AccessIn(BaseModel):
+    code: str = Field(max_length=200)
 
 
 class UserIn(BaseModel):
@@ -64,7 +70,7 @@ def _warm_sdks(settings: Settings) -> None:
     import importlib
 
     kinds = {p.kind for p in settings.providers if p.api_key or p.discover_models}
-    for kind, module in (("anthropic", "anthropic"), ("openai", "openai")):
+    for kind, module in (("anthropic", "anthropic"), ("openai", "openai"), ("gemini", "google.genai")):
         if kind in kinds:
             try:
                 importlib.import_module(module)
@@ -104,9 +110,35 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         mgr.db.close()
 
     app = FastAPI(title="Baton", lifespan=lifespan)
+    app.add_middleware(AccessGate, code=settings.access_code)
+    attempts = Attempts()
 
     def mgr(request_or_ws) -> SessionManager:
         return request_or_ws.app.state.mgr
+
+    # ---- access code (hosted deployments) -------------------------------------
+    @app.get("/api/access")
+    async def access_status(request: Request):
+        code = settings.access_code
+        ok = not code or granted(request.scope, code)
+        # Someone already in may see the code, so their invite links and QR codes can carry it.
+        return {"required": bool(code), "ok": ok, "code": code if code and ok else None}
+
+    @app.post("/api/access")
+    async def unlock(body: AccessIn, request: Request):
+        code = settings.access_code
+        if not code:
+            return {"ok": True}
+        who = request.client.host if request.client else "?"
+        if attempts.blocked(who):
+            raise HTTPException(429, "Too many wrong codes. Wait a few minutes and try again.")
+        if not hmac.compare_digest(body.code.strip(), code):
+            attempts.fail(who)
+            raise HTTPException(403, "That code isn't right")
+        resp = JSONResponse({"ok": True})
+        resp.set_cookie(COOKIE, token_for(code), max_age=30 * 86400, httponly=True, samesite="lax",
+                        secure=request.url.scheme == "https")
+        return resp
 
     @app.exception_handler(CommandError)
     async def _cmd_err(_: Request, e: CommandError):
@@ -262,7 +294,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         out = []
         for path in sorted(now):
             orig = base / path
-            state = "added" if not orig.exists() else ("modified" if orig.read_text(errors="replace") != now[path] else "same")
+            state = "added" if not orig.exists() else ("modified" if read_text_file(orig) != now[path] else "same")
             out.append({"path": path, "state": state, "size": len(now[path])})
         return {"files": out}
 
@@ -280,17 +312,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if text is None:
             raise HTTPException(404, "No such file")
         base = SAMPLE_REPOS / s["config"].get("repo", "notes-api") / path
-        original = base.read_text(errors="replace") if base.is_file() else None
-        from .sandbox import make_diff
+        original = read_text_file(base) if base.is_file() else None
+        from .sandbox import content_hash, make_diff
 
-        return {"path": path, "content": text, "diff": make_diff(path, original or "", text) if original != text else ""}
+        return {
+            "path": path, "content": text, "diff": make_diff(path, original or "", text) if original != text else "",
+            "original": original, "hash": content_hash(text),
+        }
 
     @app.get("/api/sessions/{sid}/blobs/{call_id}")
     async def blob(sid: str, call_id: str, request: Request):
         p = mgr(request).settings.data_dir / "blobs" / sid / f"{call_id}.txt"
         if not p.resolve().is_relative_to((mgr(request).settings.data_dir / "blobs").resolve()) or not p.exists():
             raise HTTPException(404, "No full output stored")
-        return PlainTextResponse(p.read_text())
+        return PlainTextResponse(p.read_text(encoding="utf-8", errors="replace"))
 
     @app.get("/api/sessions/{sid}/export")
     async def export(sid: str, request: Request):
@@ -377,6 +412,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     new = int(v) if isinstance(v, (int, float)) else None
                     if new != conn.focus_seq:
                         conn.focus_seq = new
+                        m.broadcast_presence(sid)
+                elif kind == "open_file":
+                    # Which file this person has open in the editor (None when they leave the code view).
+                    v = msg.get("path")
+                    new = v[:300] if isinstance(v, str) and v else None
+                    if new != conn.file:
+                        conn.file = new
                         m.broadcast_presence(sid)
                 elif kind == "seen":
                     if isinstance(msg.get("seq"), int):

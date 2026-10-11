@@ -49,7 +49,7 @@ export function IdentityModal({ onClose }: { onClose?: () => void }) {
             onChange={(e) => setName(e.target.value)}
             maxLength={40}
             placeholder="Your name"
-            className="h-10 flex-1 rounded-lg border border-line bg-panel px-3 text-sm outline-none focus:border-ink-3"
+            className="h-10 flex-1 rounded-lg border border-line bg-panel px-3 text-base outline-none focus:border-ink-3 sm:text-sm"
           />
         </div>
         <div className="mt-4 flex gap-2">

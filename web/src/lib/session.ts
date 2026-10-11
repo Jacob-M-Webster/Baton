@@ -77,8 +77,9 @@ class SessionSocket {
     ws.onclose = (e) => {
       if (this.ws !== ws) return;
       this.ws = null;
-      if (this.closed || e.code === 4404) {
+      if (this.closed || e.code === 4404 || e.code === 4401) {
         set({ conn: "closed" });
+        if (e.code === 4401) window.dispatchEvent(new Event("baton:locked"));
         return;
       }
       set({ conn: "reconnecting" });
@@ -242,6 +243,16 @@ function notify(e: BatonEvent, me: string) {
   } else if (e.type === "human.decision") {
     dismissTag("decision");
   } else if (e.type === "human.message" && e.payload.mode === "suggest" && iDrive && e.actor !== me) {
-    toast(`${nameOf(e.actor)} suggested: ${e.payload.text}`, "info", undefined, { label: "View", run: () => jumpTo(e.seq) });
+    toast(`${nameOf(e.actor)} requests: ${e.payload.text}`, "info", undefined, { label: "View", run: () => jumpTo(e.seq) });
+  } else if (e.type === "human.message" && e.payload.mode === "steer" && e.payload.suggested_by === me && e.actor !== me) {
+    // Close the loop for whoever asked: their request reached the agent.
+    toast(`${nameOf(e.actor)} sent your request to the agent`, "baton", undefined, { label: "View", run: () => jumpTo(e.seq) });
+  } else if (e.type === "human.suggestion_dismissed" && e.actor !== me) {
+    const src = get().events.find((x) => x.seq === e.payload.seq);
+    if (src?.actor === me) toast(`${nameOf(e.actor)} passed on your request`, "info");
+  } else if (e.type === "human.message" && e.payload.open_floor && iDrive && e.actor !== me) {
+    toast(`${nameOf(e.actor)} steered the agent: ${e.payload.text}`, "info", undefined, { label: "View", run: () => jumpTo(e.seq) });
+  } else if (e.type === "control.open_floor" && e.actor !== me) {
+    toast(e.payload.on ? `${nameOf(e.actor)} opened the floor. Your messages now go straight to the agent.` : `${nameOf(e.actor)} closed the floor`, "baton");
   }
 }

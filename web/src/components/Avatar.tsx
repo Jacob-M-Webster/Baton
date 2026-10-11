@@ -45,7 +45,7 @@ export function Avatar({
   );
 }
 
-const PROVIDER_MARK: Record<string, string> = { anthropic: "A", openai: "O", local: "L", demo: "D", external: "E" };
+const PROVIDER_MARK: Record<string, string> = { anthropic: "A", openai: "O", gemini: "G", local: "L", demo: "D", external: "E" };
 
 /** The agent's avatar carries the mark of the provider whose model wrote the message. */
 export function AgentAvatar({ size = 24, provider }: { size?: number; provider?: string }) {

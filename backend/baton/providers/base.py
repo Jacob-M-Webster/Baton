@@ -5,7 +5,7 @@ Conversation format (what the runner builds from the event log):
     {"role": "user" | "assistant", "content": [block, ...]}
 
     block = {"type": "text", "text": str}
-          | {"type": "tool_call", "id": str, "name": str, "input": dict}
+          | {"type": "tool_call", "id": str, "name": str, "input": dict, "signature"?: {"model": str, "value": str}}
           | {"type": "tool_result", "id": str, "output": str, "is_error": bool}
           | {"type": "thinking", "model": str, "raw": dict}   # signed reasoning, replayed only to the same model
 

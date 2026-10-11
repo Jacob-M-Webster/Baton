@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import signal
 import subprocess
 import sys
 import tempfile
@@ -56,7 +55,7 @@ def main() -> int:
             page.get_by_text("app/server.py").first.wait_for(timeout=20000)
 
             # Kill the server hard, mid-run.
-            server.send_signal(signal.SIGKILL)
+            server.kill()  # SIGKILL on POSIX, TerminateProcess on Windows: no clean shutdown either way
             server.wait()
             page.get_by_text("Reconnecting…").wait_for(timeout=10000)
             page.screenshot(path=str(out / "restart-1-down.png"))
