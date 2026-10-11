@@ -223,3 +223,12 @@ async def test_late_feedback_triggers_a_rework(mgr):
     assert "import LegacyThrottle" not in mw and "class RateLimiter:" in mw
     runs = [e for e in mgr.db.events(sid) if e["type"] == "tool.result" and "exit_code" in e["payload"]]
     assert runs[-1]["payload"]["exit_code"] == 0, runs[-1]["payload"]["output"]
+
+
+async def test_offline_demo_always_runs_on_its_rehearsed_repo(mgr):
+    """The default sample repo is the empty `demo`; the offline model's rehearsed task needs notes-api."""
+    s = mgr.create_session(user_id="u_alice", task=TASK, provider="demo", model="baton-demo", repo="demo")
+    assert s["config"]["repo"] == "notes-api"
+    assert mgr.workspace(s["id"]).read_text("app/server.py") is not None
+    other = mgr.create_session(user_id="u_alice", task="Start a CLI", provider="local", model="m")
+    assert other["config"]["repo"] == "demo"

@@ -24,22 +24,32 @@ function remembered(): string {
   }
 }
 
+const DEMO_REPO = "notes-api"; // where the offline demo model's rehearsed task lives
+
 export function Home() {
   const { user } = useIdentity();
   const [, navigate] = useLocation();
   const providers = useModelCatalog();
   const { sessions } = useSessionList();
   const [task, setTask] = useState("");
-  const [repo, setRepo] = useState("notes-api");
+  const [repo, setRepo] = useState("demo");
   const [github, setGithub] = useState(remembered);
   const [branch, setBranch] = useState("");
-  const onGithub = repo === GITHUB;
   const [repos, setRepos] = useState<{ id: string; description: string }[]>([]);
   const [choice, setChoice] = useState<{ provider: string; model: string } | null>(null);
+  const demoLocked = choice?.provider === "demo" && repos.some((r) => r.id === DEMO_REPO);
+  const onGithub = repo === GITHUB && !demoLocked; // the offline demo can't run on a GitHub clone
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api.repos().then((r) => setRepos(r.repos)).catch(() => {});
+    api
+      .repos()
+      .then((r) => {
+        setRepos(r.repos);
+        // Keep the selection on a repo the server actually has.
+        setRepo((cur) => (cur === GITHUB || r.repos.some((x) => x.id === cur) ? cur : r.repos[0]?.id ?? cur));
+      })
+      .catch(() => {});
   }, []);
 
   // Default to the best configured model: Claude, then Gemini, then OpenAI, then local, then the offline demo.
@@ -69,7 +79,7 @@ export function Home() {
     if (!user || !choice || !ready) return;
     setBusy(true);
     try {
-      const where = onGithub ? { repo: "", github: github.trim(), ref: branch.trim() || undefined } : { repo };
+      const where = onGithub ? { repo: "", github: github.trim(), ref: branch.trim() || undefined } : { repo: demoLocked ? DEMO_REPO : repo };
       const s = await api.createSession({ user_id: user.id, task, ...where, ...choice });
       if (onGithub) {
         try {
@@ -110,11 +120,14 @@ export function Home() {
             <label className="inline-flex h-8 items-center gap-2 rounded-md border border-line bg-canvas pr-1 pl-2.5 text-[13px]">
               <span className="text-ink-4">Repo</span>
               <select
-                value={repo}
+                // The offline demo model always runs its rehearsed task on notes-api (the server enforces it too).
+                value={demoLocked ? DEMO_REPO : repo}
+                disabled={demoLocked}
+                title={demoLocked ? "The offline demo model runs on notes-api" : undefined}
                 onChange={(e) => setRepo(e.target.value)}
-                className="h-7 rounded-md bg-transparent font-mono text-[12.5px] text-ink outline-none"
+                className="h-7 rounded-md bg-transparent font-mono text-[12.5px] text-ink outline-none disabled:opacity-100"
               >
-                {(repos.length ? repos : [{ id: "notes-api", description: "" }]).map((r) => (
+                {(repos.length ? repos : [{ id: "demo", description: "" }]).map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.id}
                   </option>

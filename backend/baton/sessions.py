@@ -40,6 +40,7 @@ COLORS = ["#2563eb", "#db2777", "#059669", "#d97706", "#7c3aed", "#0891b2", "#dc
 ACTIVE = {"running"}
 MAX_AUTONOMOUS_TURNS = 60
 EXTERNAL = "external"  # provider id for sessions driven by an agent running elsewhere
+DEMO_REPO = "notes-api"  # the sample repo the offline demo model's rehearsed task is written for
 MAX_EDIT_CHARS = 400_000  # a hand edit is stored whole in the log so forks and audits can replay it
 MAX_COMMAND_CHARS = 2_000
 
@@ -81,7 +82,7 @@ class SessionManager:
         gh = s["config"].get("github")
         if gh:
             return self.settings.data_dir / gh["path"]
-        return SAMPLE_REPOS / s["config"].get("repo", "notes-api")
+        return SAMPLE_REPOS / s["config"].get("repo", "demo")
 
     def names(self, session_id: str) -> dict[str, str]:
         ids = {p["user_id"] for p in self.db.participants(session_id)}
@@ -158,7 +159,7 @@ class SessionManager:
 
     # ---- lifecycle -------------------------------------------------------
     def create_session(self, *, user_id: str, task: str, provider: str, model: str,
-                       repo: str = "notes-api", title: str | None = None, github: dict | None = None) -> dict:
+                       repo: str = "demo", title: str | None = None, github: dict | None = None) -> dict:
         """Start a session on a sample repo, or on a GitHub clone (`github` is what `github.clone` returned)."""
         task = task.strip()
         if not task:
@@ -167,6 +168,8 @@ class SessionManager:
         if not pconf:
             raise CommandError(f"Unknown provider: {provider}")
         self.require_plan(provider)
+        if pconf.kind == "scripted" and not github and (SAMPLE_REPOS / DEMO_REPO).is_dir():
+            repo = DEMO_REPO  # the offline demo model only knows its rehearsed task on this repo
         title = (title or "").strip() or ctx.clip(ctx.first_sentence(task), 72)
         config: dict = {"repo": repo}
         if github:
