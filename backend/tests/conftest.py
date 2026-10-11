@@ -8,7 +8,7 @@ from baton.sessions import SessionManager
 
 @pytest.fixture
 def settings(tmp_path):
-    return load_settings(data_dir=tmp_path, demo_speed=200.0)
+    return load_settings(data_dir=tmp_path, demo_speed=200.0, access_code=None)
 
 
 @pytest.fixture

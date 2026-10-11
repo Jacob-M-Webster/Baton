@@ -37,6 +37,29 @@ def steer_text(ev: dict, names: dict[str, str]) -> str:
     return f"[{who}, steering]: {p['text']}"
 
 
+def edit_text(ev: dict, names: dict[str, str], limit: int = 6000) -> str:
+    """How a hand edit from the IDE reads to the agent."""
+    p = ev["payload"]
+    who = actor_name(names, ev["actor"])
+    verb = "created" if p.get("created") else "edited"
+    diff = p.get("diff") or ""
+    if len(diff) > limit:
+        diff = diff[:limit] + "\n… (diff truncated; read the file for the full text)"
+    return f"[{who} {verb} {p['path']} by hand in the editor]:\n```diff\n{diff}\n```"
+
+
+def command_text(ev: dict, names: dict[str, str], limit: int = 3000) -> str:
+    """How a command a person ran in the IDE's terminal reads to the agent."""
+    p = ev["payload"]
+    who = actor_name(names, ev["actor"])
+    if p.get("cancelled"):
+        return f"[{who} ran `{p.get('command', '')}` in the terminal and stopped it before it finished.]"
+    out = (p.get("output") or "").strip()
+    if len(out) > limit:
+        out = "…" + out[-limit:]
+    return f"[{who} ran `{p.get('command', '')}` in the terminal, exit code {p.get('exit_code', '?')}]:\n```\n{out}\n```"
+
+
 def build_messages(task: str, created_by: str, events: list[dict], names: dict[str, str],
                    checkpoint: dict | None = None) -> list[dict]:
     """Rebuild provider-neutral messages from the log (optionally after a checkpoint)."""
@@ -89,7 +112,10 @@ def build_messages(task: str, created_by: str, events: list[dict], names: dict[s
                 add("assistant", {"type": "text", "text": p["text"]})
         elif t == "tool.call":
             flush()
-            add("assistant", {"type": "tool_call", "id": p["call_id"], "name": p["name"], "input": p.get("input") or {}})
+            block = {"type": "tool_call", "id": p["call_id"], "name": p["name"], "input": p.get("input") or {}}
+            if p.get("signature"):
+                block["signature"] = p["signature"]  # Gemini's thought signature, replayed to the same model
+            add("assistant", block)
             open_calls[p["call_id"]] = p["name"]
         elif t == "tool.result":
             if p["call_id"] not in open_calls:
@@ -101,12 +127,23 @@ def build_messages(task: str, created_by: str, events: list[dict], names: dict[s
             add("user", {"type": "tool_result", "id": p["call_id"], "output": out, "is_error": bool(p.get("is_error"))})
         elif t == "human.message" and p.get("mode") == "steer":
             pending.append(steer_text(ev, names))
+        elif t == "human.edit":
+            pending.append(edit_text(ev, names))
+        elif t == "human.command_result":
+            pending.append(command_text(ev, names))
         elif t == "human.interrupt":
             pending.append(f"(system note: {actor_name(names, ev['actor'])} interrupted you mid-step. Wait for their direction.)")
         elif t == "control.driver_changed":
             pending.append(f"(system note: {actor_name(names, p['to'])} is now driving this session.)")
         elif t == "control.model_changed":
             pending.append(f"(system note: this session switched to {p['to']['model']}; the history above came from {p['from']['model']}.)")
+        elif t == "control.open_floor":
+            who = actor_name(names, ev["actor"])
+            pending.append(
+                f"(system note: {who} opened the floor: everyone in the session can now steer you directly. Requests may "
+                "overlap or conflict; say whose request you're acting on, and ask with ask_humans if they disagree.)"
+                if p.get("on") else f"(system note: {who} closed the floor; only the driver steers you now.)"
+            )
     # A decision still awaiting an answer keeps its call open; anything else gets closed out.
     if pending:
         flush()
@@ -191,6 +228,11 @@ def render_events(events: list[dict], names: dict[str, str], limit_chars: int = 
                 lines.append(f"#{ev['seq']} result ({status}): {clip(p.get('output', ''), 120)}")
         elif t == "human.message":
             lines.append(f"#{ev['seq']} {who} ({p.get('mode')}): {clip(p.get('text', ''), 200)}")
+        elif t == "human.edit":
+            lines.append(f"#{ev['seq']} {who} {'created' if p.get('created') else 'edited'} {p.get('path')} by hand")
+        elif t == "human.command_result":
+            status = "cancelled" if p.get("cancelled") else f"exit {p.get('exit_code', '?')}"
+            lines.append(f"#{ev['seq']} {who} ran `{clip(p.get('command', ''), 60)}` ({status}): {clip(p.get('output', ''), 160)}")
         elif t == "human.interrupt":
             lines.append(f"#{ev['seq']} {who} interrupted the agent")
         elif t == "human.decision":
@@ -199,6 +241,8 @@ def render_events(events: list[dict], names: dict[str, str], limit_chars: int = 
             lines.append(f"#{ev['seq']} driver changed to {actor_name(names, p['to'])}")
         elif t == "control.model_changed":
             lines.append(f"#{ev['seq']} model switched to {p['to']['model']} by {who}")
+        elif t == "control.open_floor":
+            lines.append(f"#{ev['seq']} {who} {'opened' if p.get('on') else 'closed'} the floor")
         elif t == "agent.plan":
             plan = "; ".join(f"[{s.get('status')}] {s.get('title')}" for s in p.get("steps", []))
             lines.append(f"#{ev['seq']} plan: {plan}")
@@ -210,6 +254,9 @@ def render_events(events: list[dict], names: dict[str, str], limit_chars: int = 
 
 # ---------------------------------------------------------------------------
 # Heuristic summaries (always available, instant, exact attributions)
+
+TEST_COMMAND = re.compile(r"\b(pytest|unittest|test|tests|jest|vitest)\b")
+
 
 def latest_plan(events: list[dict]) -> list[dict]:
     for ev in reversed(events):
@@ -240,6 +287,11 @@ def interventions(events: list[dict], names: dict[str, str]) -> list[dict]:
                 out.append({"seq": ev["seq"], "who": who, "what": f"steered: “{clip(p['text'], 90)}”"})
         elif t == "human.interrupt":
             out.append({"seq": ev["seq"], "who": who, "what": "interrupted the agent"})
+        elif t == "human.edit":
+            out.append({"seq": ev["seq"], "who": who,
+                        "what": f"{'created' if p.get('created') else 'edited'} `{p.get('path')}` by hand"})
+        elif t == "human.command_result" and not p.get("cancelled"):
+            out.append({"seq": ev["seq"], "who": who, "what": f"ran `{clip(p.get('command', ''), 60)}` in the terminal"})
         elif t == "human.decision":
             out.append({"seq": ev["seq"], "who": who, "what": f"decided: {clip(p.get('answer', ''), 90)}"})
         elif t == "control.driver_changed" and p.get("reason") == "force":
@@ -248,6 +300,9 @@ def interventions(events: list[dict], names: dict[str, str]) -> list[dict]:
             out.append({"seq": ev["seq"], "who": actor_name(names, p["from"]), "what": f"handed off to {actor_name(names, p['to'])}"})
         elif t == "control.model_changed":
             out.append({"seq": ev["seq"], "who": who, "what": f"switched the model to {p['to']['model']}"})
+        elif t == "control.open_floor":
+            out.append({"seq": ev["seq"], "who": who,
+                        "what": "opened the floor so everyone can steer" if p.get("on") else "closed the floor"})
     return out
 
 
@@ -261,6 +316,16 @@ def heuristic_card(session: dict, events: list[dict], names: dict[str, str]) -> 
     touched: list[str] = []
     last_test = None
     for ev in events:
+        if ev["type"] == "human.edit":
+            path = ev["payload"].get("path")
+            if path and path not in touched:
+                touched.append(path)
+            continue
+        if ev["type"] == "human.command_result":
+            # Someone running the tests by hand counts as the latest test run.
+            if not ev["payload"].get("cancelled") and TEST_COMMAND.search(ev["payload"].get("command", "")):
+                last_test = ev["payload"]
+            continue
         if ev["type"] != "tool.result" or ev["payload"].get("is_error"):
             if ev["type"] == "tool.result" and calls.get(ev["payload"]["call_id"], {}).get("name") == "run_command":
                 last_test = ev["payload"]

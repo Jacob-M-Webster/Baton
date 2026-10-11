@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
-import { Download, FileDiff, FilePlus2, X } from "lucide-react";
-import type { BatonEvent, CatchUp, Participant, Session } from "../lib/types";
-import { currentPlan, stats } from "../lib/derive";
+import { Code2, Download, FileDiff, FilePlus2 } from "lucide-react";
+import type { BatonEvent, CatchUp, Participant, Session, WorkspaceFile } from "../lib/types";
+import { currentPlan, stats, workspaceVersion } from "../lib/derive";
 import { api } from "../lib/api";
 import { compact, duration, modelLabel } from "../lib/format";
 import { useSession } from "../lib/session";
@@ -10,7 +10,8 @@ import { Avatar } from "../components/Avatar";
 import { BatonMark } from "../components/Logo";
 import { CatchUpBody } from "./CatchUp";
 import { CommentsPanel } from "./Comments";
-import { DiffView, StepIcon, type Ctx } from "./items";
+import { StepIcon, type Ctx } from "./items";
+import { showCode } from "./code/store";
 
 type Tab = "overview" | "files" | "comments";
 
@@ -127,7 +128,9 @@ function Overview({
                 <div className="text-[11.5px] text-ink-4">
                   {p.typing
                     ? "typing…"
-                    : p.viewing_seq !== null
+                    : p.file && p.online
+                      ? `has ${p.file.split("/").pop()} open`
+                      : p.viewing_seq !== null
                       ? `rewound to step #${p.viewing_seq}`
                       : p.focus_seq !== null && p.online
                         ? `reading step #${p.focus_seq}`
@@ -186,45 +189,33 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function Files({ session, events }: { session: Session; events: BatonEvent[] }) {
-  const [files, setFiles] = useState<{ path: string; state: string; size: number }[]>([]);
-  const [open, setOpen] = useState<{ path: string; diff: string; content: string } | null>(null);
-  const writes = events.filter((e) => e.type === "tool.result").length;
+  const [files, setFiles] = useState<WorkspaceFile[]>([]);
+  const version = useMemo(() => workspaceVersion(events), [events]);
   useEffect(() => {
     api.files(session.id).then((r) => setFiles(r.files)).catch(() => {});
-  }, [session.id, writes]);
+  }, [session.id, version]);
   const changed = files.filter((f) => f.state !== "same");
   const rest = files.filter((f) => f.state === "same");
+  if (session.provider === "external") {
+    return <p className="p-4 text-xs text-ink-4">This session's agent runs elsewhere, so its files live on its own machine.</p>;
+  }
   return (
     <div className="p-2">
+      <button
+        onClick={() => showCode()}
+        className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-line bg-panel px-3 py-2 text-[12.5px] font-medium text-ink hover:bg-sunken"
+      >
+        <Code2 className="size-3.5" /> Open the code view
+      </button>
       <div className="px-2 pt-2 pb-1.5 text-[11px] font-medium tracking-wide text-ink-4 uppercase">Changed · {changed.length}</div>
       {changed.length === 0 && <p className="px-2 pb-2 text-xs text-ink-4">No changes yet.</p>}
       {changed.map((f) => (
-        <FileRow key={f.path} f={f} onClick={() => api.file(session.id, f.path).then(setOpen)} />
+        <FileRow key={f.path} f={f} onClick={() => showCode(f.path)} />
       ))}
       <div className="px-2 pt-4 pb-1.5 text-[11px] font-medium tracking-wide text-ink-4 uppercase">Repository</div>
       {rest.map((f) => (
-        <FileRow key={f.path} f={f} onClick={() => api.file(session.id, f.path).then(setOpen)} />
+        <FileRow key={f.path} f={f} onClick={() => showCode(f.path)} />
       ))}
-      {open && (
-        <div className="fixed inset-0 z-40 grid place-items-center bg-black/25 p-6" onMouseDown={() => setOpen(null)}>
-          <div onMouseDown={(e) => e.stopPropagation()} className="animate-rise flex max-h-[80vh] w-full max-w-[820px] flex-col overflow-hidden rounded-2xl border border-line bg-raised shadow-2xl">
-            <div className="flex items-center gap-2 border-b border-line px-4 py-3">
-              <span className="font-mono text-[13px] font-medium">{open.path}</span>
-              {open.diff && <span className="rounded bg-sunken px-1.5 py-0.5 text-[11px] text-ink-3">diff vs. original</span>}
-              <button onClick={() => setOpen(null)} className="ml-auto rounded-md p-1 text-ink-4 hover:bg-sunken hover:text-ink">
-                <X className="size-4" />
-              </button>
-            </div>
-            <div className="min-h-0 overflow-auto">
-              {open.diff ? (
-                <DiffView diff={open.diff} maxHeight={10000} />
-              ) : (
-                <pre className="px-4 py-3 font-mono text-[12px] leading-[1.6] text-ink-2">{open.content}</pre>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

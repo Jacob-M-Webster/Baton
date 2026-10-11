@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildItems, currentPlan, groupReads, marks, openDecision, stats } from "./derive";
+import { agentFile, buildItems, currentPlan, groupReads, lastWriters, marks, openDecision, stats, workspaceRuns, workspaceVersion } from "./derive";
 import type { BatonEvent, Payload } from "./types";
 
 let seq = 0;
@@ -105,5 +105,59 @@ describe("derived session state", () => {
     const m = marks(sessionLog());
     expect(m.map((x) => x.type)).toEqual(["human.message", "agent.decision_point", "human.message"]);
     expect(m[0].mode).toBe("suggest");
+  });
+});
+
+function codeLog() {
+  seq = 0;
+  return [
+    ev("session.started", { task: "Add rate limiting" }, "alice"),
+    ev("tool.call", { call_id: "w1", name: "write_file", input: { path: "app/rate_limit.py", content: "x" }, turn: 1 }),
+    ev("tool.call", { call_id: "r1", name: "run_command", input: { command: "python -m unittest" }, turn: 1 }),
+    ev("agent.turn", { turn: 1 }),
+    ev("tool.result", { call_id: "w1", output: "Created", diff: "+x" }),
+    ev("tool.result", { call_id: "r1", output: "OK\n[exit code 0]", exit_code: 0 }),
+    ev("human.edit", { path: "app/server.py", content: "y", diff: "+y", created: false }, "alice"),
+    ev("human.command", { call_id: "cmd_1", command: "ls" }, "alice"),
+  ];
+}
+
+describe("the code view", () => {
+  it("folds hand edits and terminal commands into the timeline and counts them as interventions", () => {
+    const log = codeLog();
+    log.push(ev("human.command_result", { call_id: "cmd_1", command: "ls", output: "app", exit_code: 0 }, "alice"));
+    const items = buildItems(log);
+    expect(items.find((i) => i.kind === "edit")).toMatchObject({ seq: 7 });
+    const cmd = items.find((i) => i.kind === "command");
+    expect(cmd && cmd.kind === "command" && cmd.result?.payload.exit_code).toBe(0);
+    const s = stats(log);
+    expect(s.interventions).toBe(2);
+    expect(s.filesChanged).toBe(2);
+    expect(marks(log).map((m) => m.type)).toEqual(["human.edit", "human.command"]);
+  });
+
+  it("knows which file the agent is on, including one it's still writing out", () => {
+    const log = codeLog().slice(0, 4); // calls recorded, nothing run yet
+    expect(agentFile(log)).toEqual({ path: "app/rate_limit.py", verb: "writing" });
+    expect(agentFile(codeLog())).toBeNull();
+    expect(agentFile(codeLog(), { name: "edit_file", target: "app/store.py" })).toEqual({ path: "app/store.py", verb: "editing" });
+    expect(agentFile(codeLog(), { name: "run_command", target: "pytest" })).toBeNull();
+  });
+
+  it("tracks who last changed each file", () => {
+    const w = lastWriters(codeLog());
+    expect(w["app/rate_limit.py"]).toEqual({ actor: "agent", seq: 2 });
+    expect(w["app/server.py"]).toEqual({ actor: "alice", seq: 7 });
+  });
+
+  it("lists everything that ran in the workspace, by the agent and by people", () => {
+    const runs = workspaceRuns(codeLog());
+    expect(runs.map((r) => [r.actor, r.command, r.running])).toEqual([
+      ["agent", "python -m unittest", false],
+      ["alice", "ls", true],
+    ]);
+    expect(runs[0].output).toBe("OK");
+    expect(runs[0].exitCode).toBe(0);
+    expect(workspaceVersion(codeLog())).toBe(3);
   });
 });

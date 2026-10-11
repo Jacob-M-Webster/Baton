@@ -32,10 +32,10 @@ export function Home() {
     api.repos().then((r) => setRepos(r.repos)).catch(() => {});
   }, []);
 
-  // Default to the best configured model: Claude, then OpenAI, then local, then the offline demo.
+  // Default to the best configured model: Claude, then Gemini, then OpenAI, then local, then the offline demo.
   useEffect(() => {
     if (choice || !providers.length) return;
-    const order = ["anthropic", "openai", "local", "demo"];
+    const order = ["anthropic", "gemini", "openai", "local", "demo"];
     for (const id of order) {
       const p = providers.find((x) => x.id === id && x.configured && x.models.length);
       if (p) {

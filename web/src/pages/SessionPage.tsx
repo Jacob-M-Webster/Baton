@@ -1,14 +1,16 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowDown, History, Loader2 } from "lucide-react";
+import clsx from "clsx";
+import { ArrowDown, History, Loader2, Megaphone } from "lucide-react";
 import { api } from "../lib/api";
 import { useIdentity } from "../lib/identity";
 import { connectSession, useSession, type ToolProgress } from "../lib/session";
 import { compact } from "../lib/format";
-import { buildItems, groupReads, openDecision } from "../lib/derive";
-import type { CatchUp, Participant } from "../lib/types";
+import { buildItems, currentPlan, groupReads, openDecision } from "../lib/derive";
+import type { BatonEvent, CatchUp, Participant, Session } from "../lib/types";
 import { refreshSessions } from "../lib/sessions";
 import { AgentAvatar } from "../components/Avatar";
+import { StatusDot } from "../components/StatusPill";
 import { Button } from "../components/Button";
 import { toast } from "../components/Toasts";
 import { SessionHeader } from "../session/Header";
@@ -17,6 +19,10 @@ import { Scrubber } from "../session/Scrubber";
 import { RightPanel } from "../session/RightPanel";
 import { CatchUpModal, useCatchUp } from "../session/CatchUp";
 import { AgentText, ThinkingItem, TimelineItem, type Ctx } from "../session/items";
+import { resetCode, setView, useCode } from "../session/code/store";
+
+// The editor is the heaviest part of the app; load it the first time someone opens the code view.
+const CodeView = lazy(() => import("../session/code/CodeView"));
 
 export function SessionPage({ id }: { id: string }) {
   const me = useIdentity((s) => s.user!.id);
@@ -33,6 +39,9 @@ export function SessionPage({ id }: { id: string }) {
   const [newSince, setNewSince] = useState<number | null>(null); // last step this person saw before coming back
 
   const { session, events, participants, partial, conn, replayed, viewSeq, setViewSeq, send } = useSession();
+  const view = useCode((s) => s.view);
+
+  useEffect(() => resetCode(id), [id]);
 
   useEffect(() => {
     let disconnect: (() => void) | undefined;
@@ -89,7 +98,7 @@ export function SessionPage({ id }: { id: string }) {
   // Which step each other person is looking at, snapped to a rendered item.
   const focusBySeq = useMemo(() => {
     const out: Record<number, Participant[]> = {};
-    const rowKinds = new Set(["text", "tool", "plan", "decision", "finish", "human"]);
+    const rowKinds = new Set(["text", "tool", "plan", "decision", "finish", "human", "edit", "command"]);
     const seqs = items.filter((it) => rowKinds.has(it.kind)).map((it) => (it.kind === "decision" ? it.point?.seq ?? it.seq : it.seq));
     for (const p of participants) {
       if (p.user_id === me || !p.online) continue;
@@ -146,7 +155,7 @@ export function SessionPage({ id }: { id: string }) {
   useLayoutEffect(() => {
     const el = scroller.current;
     if (el && live && atBottom) el.scrollTop = el.scrollHeight;
-  }, [items.length, partial.text, partial.thinking, live, atBottom, replayed, !!session]);
+  }, [items.length, partial.text, partial.thinking, live, atBottom, replayed, !!session, view]); // view: back from the code view
 
   // Tell others which step I'm reading (null while following live at the bottom).
   const focusTimer = useRef<number | undefined>(undefined);
@@ -235,9 +244,11 @@ export function SessionPage({ id }: { id: string }) {
   // Esc interrupts (driver only), unless you're mid-sentence somewhere.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || !isDriver || session?.status !== "running" || showCatchUp) return;
+      if (e.key !== "Escape" || e.defaultPrevented || !isDriver || session?.status !== "running" || showCatchUp) return;
       const t = e.target as HTMLElement;
       if ((t.tagName === "TEXTAREA" || t.tagName === "INPUT") && (t as HTMLInputElement).value) return;
+      if (t.closest?.(".cm-editor")) return; // Esc in the code editor closes its search or completions
+
       send({ type: "interrupt" });
     };
     window.addEventListener("keydown", onKey);
@@ -280,6 +291,7 @@ export function SessionPage({ id }: { id: string }) {
   const streaming = live && partial.turn !== null && (partial.text || partial.thinking);
   const working = live && session.status === "running" && !streaming && !pendingTool && !drafting;
   const driverName = session.driver_id ? people[session.driver_id]?.name : undefined;
+  const codeView = view === "code" && session.provider !== "external";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -291,76 +303,93 @@ export function SessionPage({ id }: { id: string }) {
         send={send}
         conn={conn}
         onCatchUp={() => setShowCatchUp("join")}
+        view={codeView ? "code" : "timeline"}
+        onView={setView}
       />
-      <div className="flex min-h-0 flex-1">
-        <div className="flex min-w-0 flex-1 flex-col">
-          {!live && (
-            <div className="flex items-center gap-2 border-b border-attn/30 bg-attn-soft px-4 py-1.5 text-xs text-ink-2">
-              <History className="size-3.5 text-attn" />
-              Viewing the session as it was at step #{viewSeq}. New activity keeps arriving in the background.
+      {!codeView && <MobileStatus session={session} events={events} decision={decision} card={card} onOpen={() => setShowCatchUp("join")} />}
+      {codeView ? (
+        <Suspense
+          fallback={
+            <div className="grid flex-1 place-items-center">
+              <Loader2 className="size-5 animate-spin text-ink-4" />
             </div>
-          )}
-          <div
-            ref={scroller}
-            className="min-h-0 flex-1 overflow-y-auto"
-            onScroll={(e) => {
-              const el = e.currentTarget;
-              const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-              setAtBottom(bottom);
-              reportFocus(el, bottom);
-            }}
-          >
-            <div className="mx-auto w-full max-w-[760px] pt-8 pr-12 pb-6 pl-4 sm:pr-16 sm:pl-6">
-              <div className="space-y-3.5">
-                {items.map((it, i) => (
-                  <Fragment key={`${it.kind}-${it.seq}`}>
-                    {newSince !== null && it.seq > newSince && (i === 0 || items[i - 1].seq <= newSince) && (
-                      <div className="flex items-center gap-3 py-1 text-[11px] font-medium tracking-wide text-baton uppercase">
-                        <span className="h-px flex-1 bg-baton/40" />
-                        New since you were last here
-                        <span className="h-px flex-1 bg-baton/40" />
-                      </div>
-                    )}
-                    <TimelineItem item={it} ctx={ctx} events={events} />
-                  </Fragment>
-                ))}
-                {streaming && partial.thinking && !partial.text && <ThinkingItem streaming={partial.thinking} />}
-                {streaming && partial.text && <AgentText streaming={partial.text} model={session.model} provider={session.provider} />}
-                {drafting && <Drafting tool={drafting} />}
-                {working && (
-                  <div className="flex items-center gap-3 py-1">
-                    <AgentAvatar size={22} provider={session.provider} />
-                    <span className="shimmer-text text-[13.5px] font-medium">Thinking</span>
-                  </div>
-                )}
-                {live && session.status === "waiting_input" && !decision && items.length > 1 && (
-                  <p className="pl-[34px] text-xs text-ink-4">
-                    The agent is waiting. {isDriver ? "Send a message to steer it, or press Resume." : `${driverName || "The driver"} can steer it next.`}
-                  </p>
-                )}
+          }
+        >
+          <CodeView session={session} events={events} participants={participants} me={me} onJump={jump} />
+        </Suspense>
+      ) : (
+        <div className="flex min-h-0 flex-1">
+          <div className="flex min-w-0 flex-1 flex-col">
+            {!live && (
+              <div className="flex items-center gap-2 border-b border-attn/30 bg-attn-soft px-4 py-1.5 text-xs text-ink-2">
+                <History className="size-3.5 text-attn" />
+                Viewing the session as it was at step #{viewSeq}. New activity keeps arriving in the background.
+              </div>
+            )}
+            <div
+              ref={scroller}
+              className="min-h-0 flex-1 overflow-y-auto"
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+                setAtBottom(bottom);
+                reportFocus(el, bottom);
+              }}
+            >
+              <div className="mx-auto w-full max-w-[760px] pt-8 pr-12 pb-6 pl-4 sm:pr-16 sm:pl-6">
+                <div className="space-y-3.5">
+                  {items.map((it, i) => (
+                    <Fragment key={`${it.kind}-${it.seq}`}>
+                      {newSince !== null && it.seq > newSince && (i === 0 || items[i - 1].seq <= newSince) && (
+                        <div className="flex items-center gap-3 py-1 text-[11px] font-medium tracking-wide text-baton uppercase">
+                          <span className="h-px flex-1 bg-baton/40" />
+                          New since you were last here
+                          <span className="h-px flex-1 bg-baton/40" />
+                        </div>
+                      )}
+                      <TimelineItem item={it} ctx={ctx} events={events} />
+                    </Fragment>
+                  ))}
+                  {streaming && partial.thinking && !partial.text && <ThinkingItem streaming={partial.thinking} />}
+                  {streaming && partial.text && <AgentText streaming={partial.text} model={session.model} provider={session.provider} />}
+                  {drafting && <Drafting tool={drafting} />}
+                  {working && (
+                    <div className="flex items-center gap-3 py-1">
+                      <AgentAvatar size={22} provider={session.provider} />
+                      <span className="shimmer-text text-[13.5px] font-medium">Thinking</span>
+                    </div>
+                  )}
+                  {live && session.status === "waiting_input" && !decision && items.length > 1 && (
+                    <p className="pl-[34px] text-xs text-ink-4">
+                      The agent is waiting. {isDriver ? "Send a message to steer it, or press Resume." : `${driverName || "The driver"} can steer it next.`}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-          {live && !atBottom && (
-            <div className="pointer-events-none relative">
-              <button
-                onClick={() => {
-                  const el = scroller.current;
-                  if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-                }}
-                className="pointer-events-auto absolute -top-12 right-8 inline-flex items-center gap-1.5 rounded-full border border-line bg-raised px-3 py-1.5 text-xs font-medium shadow-md hover:bg-sunken"
-              >
-                <ArrowDown className="size-3.5" /> Latest
-              </button>
+            {live && !atBottom && (
+              <div className="pointer-events-none relative">
+                <button
+                  onClick={() => {
+                    const el = scroller.current;
+                    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+                  }}
+                  className="pointer-events-auto absolute -top-12 right-8 inline-flex items-center gap-1.5 rounded-full border border-line bg-raised px-3 py-1.5 text-xs font-medium shadow-md hover:bg-sunken"
+                >
+                  <ArrowDown className="size-3.5" /> Latest
+                </button>
+              </div>
+            )}
+            <div className="mx-auto w-full max-w-[760px] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-4 md:pr-16">
+              <Composer session={session} me={me} participants={participants} hasDecision={!!decision} send={send} />
             </div>
-          )}
-          <div className="mx-auto w-full max-w-[760px] px-3 pb-3 sm:px-6 sm:pb-4 md:pr-16">
-            <Composer session={session} me={me} participants={participants} hasDecision={!!decision} send={send} />
+            <div className="hidden sm:block">
+              <Scrubber events={events} viewSeq={viewSeq} setViewSeq={setViewSeq} participants={participants} me={me} onFork={fork} />
+            </div>
           </div>
-          <Scrubber events={events} viewSeq={viewSeq} setViewSeq={setViewSeq} participants={participants} me={me} onFork={fork} />
+          <RightPanel session={session} events={events} participants={participants} card={card} ctx={ctx} onJump={jump} />
         </div>
-        <RightPanel session={session} events={events} participants={participants} card={card} ctx={ctx} onJump={jump} />
-      </div>
+      )}
       {showCatchUp && card && (
         <CatchUpModal
           card={card}
@@ -372,6 +401,54 @@ export function SessionPage({ id }: { id: string }) {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Phones don't have room for the overview panel, so a one-line strip says what the agent is doing and how far
+ * along the plan is. Tapping it opens the catch-up card.
+ */
+function MobileStatus({
+  session,
+  events,
+  decision,
+  card,
+  onOpen,
+}: {
+  session: Session;
+  events: BatonEvent[];
+  decision: BatonEvent | null;
+  card: CatchUp | null;
+  onOpen: () => void;
+}) {
+  const plan = useMemo(() => currentPlan(events), [events]);
+  const done = plan.filter((s) => s.status === "done").length;
+  const current = plan.find((s) => s.status === "in_progress");
+  const text = decision
+    ? `Waiting on a decision: ${decision.payload.question}`
+    : session.status === "done"
+      ? "Finished"
+      : current?.title || card?.doing || "Getting started";
+  return (
+    <button onClick={onOpen} className="flex shrink-0 items-center gap-2.5 border-b border-line bg-panel px-3 py-2 text-left lg:hidden">
+      <StatusDot status={session.status} />
+      <span className={clsx("min-w-0 flex-1 truncate text-[12.5px]", decision ? "font-medium text-attn" : "text-ink-2")}>{text}</span>
+      {plan.length > 0 && (
+        <span className="flex shrink-0 items-center gap-1.5">
+          <span className="h-1 w-12 overflow-hidden rounded-full bg-sunken">
+            <span className="block h-full rounded-full bg-ink transition-all duration-500" style={{ width: `${(done / plan.length) * 100}%` }} />
+          </span>
+          <span className="tnum text-[11px] text-ink-4">
+            {done}/{plan.length}
+          </span>
+        </span>
+      )}
+      {session.config?.open_floor && (
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-live/10 px-1.5 py-0.5 text-[10.5px] font-medium text-live">
+          <Megaphone className="size-3" /> Open
+        </span>
+      )}
+    </button>
   );
 }
 

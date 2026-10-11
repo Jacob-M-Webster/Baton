@@ -69,6 +69,15 @@
   --add: #e6f6ea;
   --del: #fdecec;
   --viz-1: #2a78d6; /* single-series data hue, validated on the light panel */
+  /* Code view syntax colors */
+  --syn-keyword: #a3268f;
+  --syn-string: #1a7f37;
+  --syn-number: #b35900;
+  --syn-comment: #8a8a92;
+  --syn-function: #2f5bd3;
+  --syn-type: #9a6700;
+  --syn-property: #0e6f86;
+  --syn-meta: #6b6b73;
   color-scheme: light;
 }
 
@@ -89,6 +98,14 @@
   --add: #0f2617;
   --del: #2c1215;
   --viz-1: #3987e5; /* the same hue stepped for the dark panel */
+  --syn-keyword: #e392d8;
+  --syn-string: #8ccf8f;
+  --syn-number: #f0a868;
+  --syn-comment: #73737d;
+  --syn-function: #8ab4ff;
+  --syn-type: #e6c26b;
+  --syn-property: #6fd0e3;
+  --syn-meta: #8d8d96;
   color-scheme: dark;
 }
 

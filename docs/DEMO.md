@@ -7,15 +7,18 @@ the second laptop. Total stage time: about 4 minutes (1 minute of slides, 3 minu
 
 - [ ] Both laptops on the same network. Venue Wi-Fi often blocks device-to-device traffic, so a
       phone hotspot is the safer bet.
-- [ ] On Alice's laptop, start with a clean sidebar: `BATON_DATA_DIR=data/stage ./run.sh`.
+- [ ] On Alice's laptop, start with a clean sidebar: `BATON_DATA_DIR=data/stage ./run.sh`
+      (Windows PowerShell: `$env:BATON_DATA_DIR="data/stage"; .\run.ps1`).
       Note the "Teammates on your network can join at http://…" line it prints. On macOS,
-      click **Allow** when asked whether Python may accept incoming connections.
+      click **Allow** when asked whether Python may accept incoming connections; on Windows, allow
+      Python through the firewall on private networks.
 - [ ] Pick the model. With internet and `ANTHROPIC_API_KEY` set, Claude is the default. The
       **Offline demo** model needs no network and always follows the rehearsed path; keep it as
       the fallback. Pacing: `BATON_DEMO_SPEED=0.8 ./run.sh` if you like to talk over it.
 - [ ] Alice: open `http://localhost:8000/pitch` and sign in with her real name.
 - [ ] Bob: open the LAN address and sign in. Leave it on the home page.
-- [ ] One full dry run: `python scripts/e2e_demo.py --url http://localhost:8000` (about 25 s).
+- [ ] One full dry run: `python scripts/e2e_demo.py --url http://localhost:8000` (about 25 s), and
+      `python scripts/e2e_code.py --url http://localhost:8000` if you'll show the code view.
 
 ## Talk track
 
@@ -32,6 +35,13 @@ the second laptop. Total stage time: about 4 minutes (1 minute of slides, 3 minu
 | 2:35 | Both | Watch the plan change and the tests run | "Notice it changed its plan because of Bob's note: a new middleware instead of the deprecated one. Eleven tests pass." |
 | 2:55 | Bob | Optional: open **Files** to show the diff, or switch the model in the header | "Same log, any model: Claude, OpenAI or local weights. Switch mid-session and the next model picks up from the log." |
 | 3:10 | — | Back to the audience | "Baton is the collaboration layer for agents: seats for collaborators, bring your own model." |
+
+Optional code-view beat (adds 30 s, best after 2:35 while the agent is writing code): Bob clicks
+**Code** in the header. The editor follows the agent into `rate_limit.py` and `server.py`, and changed
+lines light up as they land. *"Same session, as an IDE. I can see what it's writing, line by line, and
+Alice's avatar shows she has this file open too."* As the driver, Bob edits a line, presses **Ctrl+S**,
+and runs `python -m unittest -q` in the terminal: *"My edit and my test run are in the log with my
+name on them, and the agent reads both at its next step."*
 
 Optional durability beat (adds 20 s): while the agent is working, press `Ctrl+C` in Alice's
 terminal and run `./run.sh` again. Both browsers show *Reconnecting…*, then *Server restarted.
@@ -64,6 +74,12 @@ Session resumed from event #N, nothing lost.*
   the driver's delegated credentials, or org-level bring-your-own-key.
 - **"What about Claude Code, Codex, or our in-house agent?"** The adapter layer is the product
   boundary. Next step is ingest adapters so existing agents stream into the same event schema.
+- **"Can people just fix the code themselves?"** Yes, in the code view. Whoever holds the baton
+  edits and runs commands; everyone else watches read-only. A hand edit is an event like a steer, so
+  the agent sees the diff, and saving over a file the agent just changed asks you to resolve it.
+- **"What stops a room of people from fighting over it?"** By default only the driver steers; everyone
+  else sends requests. Open floor is a deliberate switch, every steer is attributed, and the agent is told
+  the floor is open so it says whose request it's acting on and asks when they conflict.
 - **"How do you make money?"** Seats for collaborators, enterprise for SSO, audit export and
   self-hosted runners. We don't resell tokens.
 - **"Is running agent code safe?"** Each session gets its own workspace. `BATON_SANDBOX=docker`
@@ -71,14 +87,21 @@ Session resumed from event #N, nothing lost.*
 
 ## Hosting it instead of running on a laptop
 
-If the venue network is unreliable between devices, run Baton on any small Linux VM and have both
-laptops open its URL. On the VM (Python 3.10+, Node 20.19+ or 22.12+):
+If the venue network is unreliable between devices, or judges should join from their phones over
+cellular, run Baton on Lightsail: `./deploy/lightsail/launch.sh` (full guide in
+[deploy/lightsail/README.md](../deploy/lightsail/README.md)). Both laptops and every phone then open the
+same `https://…sslip.io` address. Redeploy after last-minute changes with `./deploy/lightsail/deploy.sh`,
+and print the join link with `./deploy/lightsail/ctl.sh url`.
 
-```bash
-git clone <repo> && cd PalmettoHacks
-cp .env.example .env          # add API keys if you want real models
-./run.sh                      # agent commands run in a per-session folder on the VM
-```
+## Judges on their phones
 
-A fresh clone builds and starts in about 90 seconds. The server listens on port 8000 on all
-interfaces; open that port in the VM's firewall.
+- [ ] Before you present, open the session's **Share** menu once on the driver's laptop. The QR code
+      and link include the access code.
+- [ ] The deck's last slide (`/pitch`) shows a QR code for the newest live session. Start the demo
+      session before you reach that slide.
+
+Optional beat (adds 45 s, after the hand-off): *"You can steer it too."* Show the QR code. Judges scan,
+type a name, and land in the session with a status strip and one-tap prompts. Their messages arrive as
+requests; send one to the agent with one tap, and the judge who asked sees it land. Then flip **Open the
+floor** in the Share menu: *"Now it's everyone's agent. Every message goes straight in, with a name on
+it."* The driver still owns decisions and interrupts.

@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { Route, Switch, useLocation } from "wouter";
 import { useIdentity } from "./lib/identity";
+import { useAccess } from "./lib/access";
+import { AccessGate } from "./components/AccessGate";
 import { IdentityModal } from "./components/IdentityModal";
 import { Toasts } from "./components/Toasts";
 import { Home } from "./pages/Home";
@@ -12,10 +14,17 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export function App() {
   const { user, ready, sync } = useIdentity();
+  const access = useAccess();
   const [loc] = useLocation();
   useEffect(() => {
-    sync();
-  }, [sync]);
+    access.check();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (access.ok) sync();
+  }, [sync, access.ok]);
+  if (!access.checked) return null;
+  if (access.required && !access.ok) return <AccessGate />;
   if (loc === "/pitch") return <Pitch />;
   return (
     <div className="flex h-full overflow-hidden">

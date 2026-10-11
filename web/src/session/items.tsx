@@ -3,7 +3,7 @@ import clsx from "clsx";
 import {
   AlertTriangle, ArrowRightLeft, Ban, Check, ChevronRight, CircleDashed, CircleDot, Cpu, FileText,
   FolderTree, GitFork, ListChecks, Loader2, MessageSquare, PencilLine, FilePlus2, RotateCcw, Square,
-  Terminal, UserPlus, Archive, X, Hand,
+  Terminal, UserPlus, Archive, X, Hand, Code2, Megaphone,
 } from "lucide-react";
 import type { BatonEvent, Participant } from "../lib/types";
 import type { Item, PlanStep, ToolItem } from "../lib/derive";
@@ -13,6 +13,7 @@ import { BatonMark } from "../components/Logo";
 import { Markdown } from "../components/Markdown";
 import { Button } from "../components/Button";
 import { CommentThread, useCommentsFor } from "./Comments";
+import { showCode } from "./code/store";
 
 export interface Ctx {
   me: string;
@@ -148,6 +149,18 @@ export function TimelineItem({ item, ctx, events }: { item: Item; ctx: Ctx; even
       return (
         <Row seq={item.seq} ctx={ctx} ts={item.ev.ts}>
           <HumanItem item={item} ctx={ctx} events={events} />
+        </Row>
+      );
+    case "edit":
+      return (
+        <Row seq={item.seq} ctx={ctx} ts={item.ev.ts}>
+          <HandEditItem ev={item.ev} ctx={ctx} />
+        </Row>
+      );
+    case "command":
+      return (
+        <Row seq={item.seq} ctx={ctx} ts={item.ev.ts}>
+          <HandCommandItem item={item} ctx={ctx} />
         </Row>
       );
     case "request":
@@ -292,18 +305,36 @@ export function ToolCard({ call, result }: { call: BatonEvent; result?: BatonEve
             {r?.cancelled ? (
               <div className="px-3 py-2 text-xs text-danger">Cancelled before it finished.</div>
             ) : isDiff ? (
-              <DiffView diff={r!.diff} />
+              <>
+                <DiffView diff={r!.diff} />
+                <OpenInEditor path={String(input.path || "")} />
+              </>
             ) : name === "run_command" ? (
               <TerminalView command={String(input.command)} output={r?.output || ""} />
             ) : (
-              <pre className="max-h-[320px] overflow-auto bg-sunken px-3 py-2.5 font-mono text-[11.5px] leading-[1.6] whitespace-pre text-ink-2">
-                {r?.output}
-              </pre>
+              <>
+                <pre className="max-h-[320px] overflow-auto bg-sunken px-3 py-2.5 font-mono text-[11.5px] leading-[1.6] whitespace-pre text-ink-2">
+                  {r?.output}
+                </pre>
+                {name === "read_file" && !r?.is_error && <OpenInEditor path={String(input.path || "")} />}
+              </>
             )}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function OpenInEditor({ path }: { path: string }) {
+  if (!path) return null;
+  return (
+    <button
+      onClick={() => showCode(path)}
+      className="flex w-full items-center gap-1.5 border-t border-line px-3 py-1.5 text-left text-[11.5px] text-ink-3 hover:bg-sunken/60 hover:text-ink"
+    >
+      <Code2 className="size-3" /> Open <span className="font-mono">{path}</span> in the editor
+    </button>
   );
 }
 
@@ -522,7 +553,7 @@ function DecisionCard({ item, ctx }: { item: Extract<Item, { kind: "decision" }>
               value={other}
               onChange={(e) => setOther(e.target.value)}
               placeholder="Or answer in your own words"
-              className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-panel px-3 text-[13px] outline-none focus:border-ink-3"
+              className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-panel px-3 text-base outline-none focus:border-ink-3 sm:text-[13px]"
             />
             <Button type="submit" disabled={!other.trim()}>
               Answer
@@ -578,7 +609,7 @@ function HumanItem({ item, ctx, events }: { item: Extract<Item, { kind: "human" 
         <Meta>
           <Avatar name={who.name} color={who.color} size={16} />
           <span>
-            <span className="font-medium text-ink-2">{who.name}</span> suggested
+            <span className="font-medium text-ink-2">{who.name}</span> requested
           </span>
           <span>·</span>
           <span className="tnum">{shortClock(ev.ts)}</span>
@@ -623,11 +654,11 @@ function HumanItem({ item, ctx, events }: { item: Extract<Item, { kind: "human" 
           {from ? (
             <>
               <span className="font-medium text-ink-2">{who.name}</span> sent <span className="font-medium text-ink-2">{from.name}</span>'s
-              {p.promoted_from?.comment_id ? " comment" : " suggestion"} to the agent
+              {p.promoted_from?.comment_id ? " comment" : " request"} to the agent
             </>
           ) : (
             <>
-              <span className="font-medium text-ink-2">{who.name}</span> steered
+              <span className="font-medium text-ink-2">{who.name}</span> steered{p.open_floor ? " (open floor)" : ""}
             </>
           )}
         </span>
@@ -639,6 +670,67 @@ function HumanItem({ item, ctx, events }: { item: Extract<Item, { kind: "human" 
         <a href={`#ev-${source.seq}`} className="mt-1.5 inline-flex items-center gap-1 text-xs text-ink-3 hover:text-ink">
           <MessageSquare className="size-3" /> on step #{source.seq}
         </a>
+      )}
+    </div>
+  );
+}
+
+/** Someone edited a file by hand in the code view. The agent reads the diff at its next turn. */
+function HandEditItem({ ev, ctx }: { ev: BatonEvent; ctx: Ctx }) {
+  const who = person(ctx, ev.actor);
+  const p = ev.payload;
+  const [open, setOpen] = useState(false);
+  const stats = useMemo(() => diffStats(p.diff || ""), [p.diff]);
+  return (
+    <div className="ml-[34px] overflow-hidden rounded-xl border bg-panel" style={{ borderColor: `${who.color}55`, boxShadow: `inset 3px 0 0 ${who.color}` }}>
+      <button onClick={() => setOpen(!open)} className="flex w-full items-center gap-2 px-3.5 py-2 text-left hover:bg-sunken/40">
+        <Avatar name={who.name} color={who.color} size={16} />
+        <span className="shrink-0 text-xs text-ink-3">
+          <span className="font-medium text-ink-2">{who.name}</span> {p.created ? "created" : "edited"}
+        </span>
+        <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-ink">{p.path}</span>
+        <span className="tnum shrink-0 font-mono text-[11.5px]">
+          <span className="text-live">+{stats.add}</span> <span className="text-danger">−{stats.del}</span>
+        </span>
+        <span className="tnum shrink-0 text-xs text-ink-4">{shortClock(ev.ts)}</span>
+        <ChevronRight className={clsx("size-3.5 shrink-0 text-ink-4 transition-transform", open && "rotate-90")} />
+      </button>
+      {open && (
+        <div className="border-t border-line">
+          <DiffView diff={p.diff || ""} />
+          <OpenInEditor path={p.path} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Someone ran a command in the code view's terminal. */
+function HandCommandItem({ item, ctx }: { item: Extract<Item, { kind: "command" }>; ctx: Ctx }) {
+  const who = person(ctx, item.ev.actor);
+  const r = item.result?.payload;
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="ml-[34px] overflow-hidden rounded-xl border bg-panel" style={{ borderColor: `${who.color}55`, boxShadow: `inset 3px 0 0 ${who.color}` }}>
+      <button onClick={() => setOpen(!open)} className="flex w-full items-center gap-2 px-3.5 py-2 text-left hover:bg-sunken/40">
+        <Avatar name={who.name} color={who.color} size={16} />
+        <span className="shrink-0 text-xs text-ink-3">
+          <span className="font-medium text-ink-2">{who.name}</span> ran
+        </span>
+        <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-ink">{item.ev.payload.command}</span>
+        {!item.result ? (
+          <Loader2 className="size-3.5 shrink-0 animate-spin text-ink-3" />
+        ) : r?.cancelled ? (
+          <span className="shrink-0 text-[11.5px] text-danger">stopped</span>
+        ) : (
+          <span className={clsx("tnum shrink-0 font-mono text-[11.5px]", r?.exit_code === 0 ? "text-live" : "text-danger")}>exit {r?.exit_code}</span>
+        )}
+        <span className="tnum shrink-0 text-xs text-ink-4">{shortClock(item.ev.ts)}</span>
+      </button>
+      {open && item.result && !r?.cancelled && (
+        <div className="border-t border-line">
+          <TerminalView command={String(item.ev.payload.command)} output={r?.output || ""} />
+        </div>
       )}
     </div>
   );
@@ -715,6 +807,15 @@ function SystemItem({ ev, ctx }: { ev: BatonEvent; ctx: Ctx }) {
         );
       break;
     }
+    case "control.open_floor":
+      icon = <Megaphone className="size-3.5" />;
+      tone = p.on ? "text-live" : "text-ink-3";
+      body = (
+        <>
+          <span className="font-medium">{who.name}</span> {p.on ? "opened the floor: everyone here can steer the agent" : "closed the floor"}
+        </>
+      );
+      break;
     case "control.driver_declined":
       icon = <BatonMark className="size-3.5 opacity-50" />;
       body = (

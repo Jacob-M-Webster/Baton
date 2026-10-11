@@ -14,3 +14,9 @@ data/
 
 # build output
 .env
+
+# Lightsail deployment: secrets, SSH keys and local state
+deploy/lightsail/server.env
+deploy/lightsail/.ssh/
+deploy/lightsail/.state
+deploy/lightsail/backup-*.tgz

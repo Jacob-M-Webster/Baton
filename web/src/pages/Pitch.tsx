@@ -4,6 +4,7 @@ import QRCode from "qrcode";
 import clsx from "clsx";
 import { ArrowLeft, ArrowRight, Check, Cpu, Eye, GitFork, Lightbulb, MessageSquare, Radio, RotateCcw, Sparkles } from "lucide-react";
 import { api } from "../lib/api";
+import { useAccess } from "../lib/access";
 import { Logo, BatonMark } from "../components/Logo";
 import { Avatar, AgentAvatar } from "../components/Avatar";
 
@@ -75,8 +76,10 @@ function LogDiagram() {
 }
 
 function Join() {
-  const [url, setUrl] = useState(location.origin);
+  const [origin, setOrigin] = useState(location.origin);
+  const [live, setLive] = useState<string | null>(null); // the session to drop judges into, if one is running
   const [qr, setQr] = useState("");
+  const code = useAccess((s) => s.code);
   useEffect(() => {
     api
       .info()
@@ -84,11 +87,23 @@ function Join() {
         if ((location.hostname === "localhost" || location.hostname === "127.0.0.1") && i.lan_urls[0]) {
           const u = new URL(i.lan_urls[0]);
           u.port = location.port;
-          setUrl(u.origin);
+          setOrigin(u.origin);
         }
       })
       .catch(() => {});
+    // Scanning should land people in the live demo, not on the home page.
+    api
+      .sessions()
+      .then((r) => {
+        const active = r.sessions
+          .filter((s) => s.status === "running" || s.status === "waiting_input")
+          .sort((a, b) => b.updated_at - a.updated_at)[0];
+        if (active) setLive(active.id);
+      })
+      .catch(() => {});
   }, []);
+  // With an access code, the link carries it, so one scan gets someone all the way in.
+  const url = `${origin}${live ? `/s/${live}` : "/"}${code ? `?code=${encodeURIComponent(code)}` : ""}`;
   useEffect(() => {
     const dark = document.documentElement.classList.contains("dark");
     QRCode.toDataURL(url, { margin: 1, width: 400, color: { dark: dark ? "#ececef" : "#17171a", light: "#00000000" } }).then(setQr).catch(() => {});
@@ -97,8 +112,8 @@ function Join() {
     <div className="flex items-center gap-10">
       {qr && <img src={qr} alt="QR code to open Baton" className="size-44 rounded-xl border border-line bg-panel p-3" />}
       <div>
-        <p className="text-[16px] text-ink-3">Scan to join the live session on your phone or laptop</p>
-        <p className="mt-2 font-mono text-[20px] text-ink">{url.replace(/^https?:\/\//, "")}</p>
+        <p className="text-[16px] text-ink-3">{live ? "Scan to join the live session on your phone and steer it with us" : "Scan to open Baton on your phone or laptop"}</p>
+        <p className="mt-2 font-mono text-[20px] text-ink">{origin.replace(/^https?:\/\//, "")}</p>
         <Link href="/" className="mt-6 inline-flex h-11 items-center gap-2 rounded-xl bg-ink px-5 text-[15px] font-medium text-canvas hover:bg-ink/88">
           Start the live demo <ArrowRight className="size-4" />
         </Link>
@@ -163,6 +178,7 @@ const SLIDES: (() => ReactNode)[] = [
         <div className="space-y-3">
           {[
             ["A", "Claude", "Anthropic Messages API, prompt caching"],
+            ["G", "Gemini", "Native Gemini API, thought summaries and signatures"],
             ["O", "OpenAI", "Chat Completions, streaming tool calls"],
             ["L", "Local weights", "Ollama, vLLM, LM Studio, llama.cpp"],
             ["+", "Any compatible endpoint", "OpenRouter, Groq, a team GPU box"],

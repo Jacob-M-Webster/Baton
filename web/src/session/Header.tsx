@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import QRCode from "qrcode";
 import clsx from "clsx";
-import { Check, Copy, GitFork, Link2, Play, Sparkles, Square } from "lucide-react";
+import { Check, Code2, Copy, GitFork, Link2, ListTree, Megaphone, Play, Sparkles, Square } from "lucide-react";
 import type { Participant, Session } from "../lib/types";
 import { api } from "../lib/api";
+import { useAccess } from "../lib/access";
 import { Avatar } from "../components/Avatar";
 import { BatonMark } from "../components/Logo";
 import { Button, Kbd } from "../components/Button";
@@ -20,6 +21,8 @@ export function SessionHeader({
   send,
   onCatchUp,
   conn,
+  view,
+  onView,
 }: {
   session: Session;
   participants: Participant[];
@@ -28,6 +31,8 @@ export function SessionHeader({
   send: (m: Record<string, unknown>) => boolean;
   onCatchUp: () => void;
   conn: string;
+  view: "timeline" | "code";
+  onView: (v: "timeline" | "code") => void;
 }) {
   const isDriver = session.driver_id === me;
   const driver = participants.find((p) => p.user_id === session.driver_id);
@@ -53,12 +58,42 @@ export function SessionHeader({
           </Link>
         )}
         <StatusPill status={session.status} decision={hasDecision} />
+        {session.config?.open_floor && (
+          <span className="hidden shrink-0 items-center gap-1 rounded-full bg-live/10 px-2 py-0.5 text-[11px] font-medium text-live sm:inline-flex" title="Everyone in the session can steer the agent">
+            <Megaphone className="size-3" /> Open floor
+          </span>
+        )}
         {conn !== "open" && (
           <span className="text-xs text-attn">{conn === "reconnecting" ? "Reconnecting…" : "Connecting…"}</span>
         )}
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        {session.provider !== "external" && (
+          <div className="hidden items-center rounded-lg bg-sunken p-0.5 text-xs font-medium sm:flex" role="tablist" aria-label="View">
+            {(
+              [
+                ["timeline", ListTree, "Timeline"],
+                ["code", Code2, "Code"],
+              ] as const
+            ).map(([v, Icon, label]) => (
+              <button
+                key={v}
+                role="tab"
+                aria-selected={view === v}
+                onClick={() => onView(v)}
+                title={v === "code" ? "The agent's workspace as an editor and terminal" : "Everything that happened, step by step"}
+                className={clsx(
+                  "inline-flex h-7 items-center gap-1.5 rounded-md px-2",
+                  view === v ? "bg-panel text-ink shadow-[0_1px_2px_rgb(0_0_0/0.08)]" : "text-ink-3 hover:text-ink-2",
+                )}
+              >
+                <Icon className="size-3.5" />
+                <span className="hidden lg:inline">{label}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="hidden md:block">
         <ModelPicker
           compact
@@ -77,7 +112,7 @@ export function SessionHeader({
         </Button>
 
         <div className="hidden sm:block">
-          <ShareButton sessionId={session.id} />
+          <ShareButton sessionId={session.id} openFloor={!!session.config?.open_floor} isDriver={isDriver} send={send} />
         </div>
 
         {isDriver ? (
@@ -189,12 +224,27 @@ function Presence({ participants, driverId }: { participants: Participant[]; dri
   );
 }
 
-function ShareButton({ sessionId }: { sessionId: string }) {
+function ShareButton({
+  sessionId,
+  openFloor,
+  isDriver,
+  send,
+}: {
+  sessionId: string;
+  openFloor: boolean;
+  isDriver: boolean;
+  send: (m: Record<string, unknown>) => boolean;
+}) {
   const [url, setUrl] = useState(`${location.origin}/s/${sessionId}`);
   const [qr, setQr] = useState("");
   const [copied, setCopied] = useState(false);
   const [viewOnly, setViewOnly] = useState(false);
-  const link = viewOnly ? `${url}?role=viewer` : url;
+  const code = useAccess((s) => s.code);
+  // On a hosted Baton the link carries the access code, so one scan gets someone all the way in.
+  const params = new URLSearchParams();
+  if (viewOnly) params.set("role", "viewer");
+  if (code) params.set("code", code);
+  const link = params.toString() ? `${url}?${params}` : url;
   useEffect(() => {
     // Prefer the LAN address so a teammate's laptop or phone can open it.
     api
@@ -237,12 +287,36 @@ function ShareButton({ sessionId }: { sessionId: string }) {
         <div className="p-2">
           <p className="text-[13px] font-semibold">Invite to this session</p>
           <p className="mt-0.5 text-xs text-ink-3">
-            Anyone with the link joins {viewOnly ? "as a viewer who can watch and comment" : "as a collaborator who can suggest and comment"},
+            Anyone with the link joins{" "}
+            {viewOnly ? "as a viewer who can watch and comment" : openFloor ? "and can steer the agent directly" : "and can send you requests and comment"},
             and starts with a catch-up of everything so far.
+            {code && " The link includes this server's access code, so only share it with people you'd let in."}
           </p>
+          {isDriver && (
+            <button
+              role="switch"
+              aria-checked={openFloor}
+              onClick={() => send({ type: "set_open_floor", on: !openFloor })}
+              className={clsx(
+                "mt-3 flex w-full items-start gap-2.5 rounded-lg border px-2.5 py-2 text-left",
+                openFloor ? "border-live/40 bg-live/[0.06]" : "border-line hover:bg-sunken",
+              )}
+            >
+              <span className={clsx("mt-0.5 flex h-4 w-7 shrink-0 items-center rounded-full p-0.5 transition-colors", openFloor ? "bg-live" : "bg-line-strong")}>
+                <span className={clsx("size-3 rounded-full bg-white transition-transform", openFloor && "translate-x-3")} />
+              </span>
+              <span>
+                <span className="block text-[12.5px] font-medium text-ink">Open the floor</span>
+                <span className="block text-[11.5px] leading-snug text-ink-3">
+                  Collaborators' messages go straight to the agent instead of waiting for you. Good for a room of judges on
+                  their phones. You keep decisions, interrupts and the baton.
+                </span>
+              </span>
+            </button>
+          )}
           <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-sunken p-0.5 text-xs font-medium">
             {[
-              [false, "Can suggest"],
+              [false, openFloor ? "Can steer" : "Can request"],
               [true, "View only"],
             ].map(([v, label]) => (
               <button

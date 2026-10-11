@@ -44,5 +44,9 @@ export function modelLabel(model: string) {
     "gpt-5": "GPT-5",
     "gpt-5-mini": "GPT-5 mini",
   };
-  return known[model] || model;
+  if (known[model]) return known[model];
+  // gemini-3.8-flash-lite -> Gemini 3.8 Flash Lite; gemini-3.1-pro-preview -> Gemini 3.1 Pro (preview)
+  const g = /^gemini-(.+?)(-preview)?$/.exec(model);
+  if (g) return `Gemini ${g[1].split("-").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ")}${g[2] ? " (preview)" : ""}`;
+  return model;
 }

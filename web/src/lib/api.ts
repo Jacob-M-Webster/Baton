@@ -1,4 +1,4 @@
-import type { CatchUp, Comment, ProviderInfo, Session, SessionSummary, User, Participant } from "./types";
+import type { CatchUp, Comment, FileContent, ProviderInfo, Session, SessionSummary, User, Participant, WorkspaceFile } from "./types";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(path, {
@@ -7,6 +7,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!r.ok) {
     let msg = `${r.status} ${r.statusText}`;
+    if (r.status === 401) window.dispatchEvent(new Event("baton:locked")); // needs the access code again
     try {
       const body = await r.json();
       msg = body.error || body.detail || msg;
@@ -35,7 +36,7 @@ export const api = {
     req<CatchUp>(`/api/sessions/${id}/catchup${userId ? `?user_id=${encodeURIComponent(userId)}` : ""}`),
   fork: (id: string, seq: number, userId: string) =>
     req<Session>(`/api/sessions/${id}/fork`, { method: "POST", body: JSON.stringify({ seq, user_id: userId }) }),
-  files: (id: string) => req<{ files: { path: string; state: "added" | "modified" | "same"; size: number }[] }>(`/api/sessions/${id}/files`),
+  files: (id: string) => req<{ files: WorkspaceFile[] }>(`/api/sessions/${id}/files`),
   file: (id: string, path: string) =>
-    req<{ path: string; content: string; diff: string }>(`/api/sessions/${id}/files/${path.split("/").map(encodeURIComponent).join("/")}`),
+    req<FileContent>(`/api/sessions/${id}/files/${path.split("/").map(encodeURIComponent).join("/")}`),
 };

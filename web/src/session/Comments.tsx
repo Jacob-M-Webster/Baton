@@ -56,7 +56,7 @@ export function CommentThread({ seq, ctx }: { seq: number; ctx: Ctx }) {
             if (e.key === "Escape") ctx.setOpenThread(null);
           }}
           placeholder={comments.length ? "Reply…" : "Comment on this step…"}
-          className="max-h-32 min-h-8 flex-1 resize-none bg-transparent px-1.5 py-1.5 text-[13px] outline-none placeholder:text-ink-4"
+          className="max-h-32 min-h-8 flex-1 resize-none bg-transparent px-1.5 py-1.5 text-base outline-none placeholder:text-ink-4 sm:text-[13px]"
         />
         <Button size="sm" type="submit" variant="primary" disabled={!body.trim()}>
           <CornerDownLeft className="size-3" />
