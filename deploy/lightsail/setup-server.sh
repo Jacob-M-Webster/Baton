@@ -1,17 +1,15 @@
 #!/bin/bash
 # First-boot setup for the Lightsail instance (passed as user data, runs once as root).
 # Installs Python, Caddy (HTTPS reverse proxy) and a systemd service. The app itself arrives with deploy.sh.
-set -euxo pipefail
+# Lightsail prepends its own #!/bin/sh snippet to user data, so this runs under sh, not bash: keep it POSIX.
+set -eux
 export DEBIAN_FRONTEND=noninteractive
 
+# Caddy comes from Ubuntu's own archive: automatic HTTPS certificates, WebSockets out of the box. Its old
+# Cloudsmith apt repository answers 402 Payment Required, so drop it if an earlier run added it.
+rm -f /etc/apt/sources.list.d/caddy-stable.list /usr/share/keyrings/caddy-stable-archive-keyring.gpg
 apt-get update
-apt-get install -y python3 python3-venv python3-pip git curl gpg debian-keyring debian-archive-keyring apt-transport-https
-
-# Caddy from its official apt repository: automatic HTTPS certificates, WebSockets out of the box.
-curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/gpg.key | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt -o /etc/apt/sources.list.d/caddy-stable.list
-apt-get update
-apt-get install -y caddy
+apt-get install -y python3 python3-venv python3-pip git curl caddy
 
 # A small swap file keeps pip installs and test runs from tripping the OOM killer on 1 GB plans.
 if ! swapon --show | grep -q /swapfile; then
