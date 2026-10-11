@@ -61,6 +61,7 @@ class SessionManager:
         self.providers = {p.id: build_provider(p, settings) for p in settings.providers}
         self._catchup_cache: dict[str, dict] = {}
         self._catchup_jobs: dict[str, asyncio.Task] = {}
+        self._catchup_asked: dict[str, float] = {}  # session -> when we last asked a model for a catch-up summary
         self._bg: set[asyncio.Task] = set()
         self.terminals: dict[str, tuple[asyncio.Task, asyncio.Task]] = {}  # session -> (work, record) of a terminal command
 
@@ -641,6 +642,7 @@ class SessionManager:
         if job:
             job.cancel()
         self._catchup_cache.pop(session_id, None)
+        self._catchup_asked.pop(session_id, None)
         self.hub.partial.pop(session_id, None)
         self.db.delete_session(session_id)
         self.hub.broadcast(session_id, {"type": "deleted", "by": user_id})
@@ -663,7 +665,7 @@ class SessionManager:
                 card.update({k: cached[k] for k in ("doing", "done", "next") if cached.get(k)})
                 card["source"] = cached["source"]
                 card["summary_seq"] = cached["head_seq"]
-            if stale > 6:
+            if stale >= self.settings.catchup_refresh_events:
                 self._refresh_catchup(session_id)
         else:
             self._refresh_catchup(session_id)
@@ -680,6 +682,13 @@ class SessionManager:
         job = self._catchup_jobs.get(session_id)
         if job and not job.done():
             return
+        # Every open tab polls the card as events arrive; one model call per window is plenty, and a failed
+        # or unparseable summary must not be retried on every poll.
+        now = time.monotonic()
+        last = self._catchup_asked.get(session_id)
+        if last is not None and now - last < self.settings.catchup_min_seconds:
+            return
+        self._catchup_asked[session_id] = now
         self._catchup_jobs[session_id] = self.spawn(self._llm_catchup(session_id))
 
     async def _llm_catchup(self, session_id: str) -> None:

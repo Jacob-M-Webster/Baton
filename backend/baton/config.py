@@ -58,6 +58,8 @@ class Settings:
     access_code: str | None = None  # when set, the API needs this shared code (see access.py)
     github_token: str | None = None  # lets sessions clone private GitHub repositories
     admin_code: str | None = None  # unlocks changing API keys from the Settings page (see keys.py)
+    catchup_min_seconds: float = 120.0  # at most one catch-up summary request per session this often
+    catchup_refresh_events: int = 15  # how many new events make a catch-up summary worth redoing
 
     def provider(self, pid: str) -> ProviderConfig | None:
         return next((p for p in self.providers if p.id == pid), None)
@@ -149,6 +151,8 @@ def load_settings(**overrides) -> Settings:
         driver_idle_seconds=int(os.environ.get("BATON_DRIVER_IDLE_SECONDS", "120")),
         checkpoint_every_turns=int(os.environ.get("BATON_CHECKPOINT_EVERY", "10")),
         keep_recent_turns=int(os.environ.get("BATON_KEEP_RECENT_TURNS", "6")),
+        catchup_min_seconds=float(os.environ.get("BATON_CATCHUP_MIN_SECONDS", "120")),
+        catchup_refresh_events=int(os.environ.get("BATON_CATCHUP_REFRESH_EVENTS", "15")),
         slack_webhook=os.environ.get("SLACK_WEBHOOK_URL") or None,
         access_code=os.environ.get("BATON_ACCESS_CODE", "").strip() or None,
         github_token=os.environ.get("GITHUB_TOKEN", "").strip() or None,
