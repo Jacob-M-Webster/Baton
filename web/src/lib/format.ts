@@ -48,5 +48,7 @@ export function modelLabel(model: string) {
   // gemini-3.8-flash-lite -> Gemini 3.8 Flash Lite; gemini-3.1-pro-preview -> Gemini 3.1 Pro (preview)
   const g = /^gemini-(.+?)(-preview)?$/.exec(model);
   if (g) return `Gemini ${g[1].split("-").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ")}${g[2] ? " (preview)" : ""}`;
+  // grok-4 -> Grok 4; grok-code-fast-1 -> Grok Code Fast 1
+  if (model.startsWith("grok-")) return model.split("-").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
   return model;
 }

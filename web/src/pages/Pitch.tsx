@@ -191,6 +191,7 @@ const SLIDES: (() => ReactNode)[] = [
             ["A", "Claude", "Anthropic Messages API, prompt caching"],
             ["G", "Gemini", "Native Gemini API, thought summaries and signatures"],
             ["O", "OpenAI", "Chat Completions, streaming tool calls"],
+            ["X", "Grok", "xAI API, reasoning and streaming tool calls"],
             ["L", "Local weights", "Ollama, vLLM, LM Studio, llama.cpp"],
             ["+", "Any compatible endpoint", "OpenRouter, Groq, a team GPU box"],
           ].map(([g, n, d]) => (
@@ -233,7 +234,7 @@ const SLIDES: (() => ReactNode)[] = [
       <div className="grid grid-cols-3 gap-6">
         {[
           ["Free", "Forever", ["The offline demo agent", "Join, watch and comment on any session", "Requests from phones, no account"]],
-          ["Team", <TeamPrice key="p" />, ["Every model: Claude, Gemini, OpenAI, local", "Unlimited sessions and collaborators", "Code view, forks, insights, audit export"]],
+          ["Team", <TeamPrice key="p" />, ["Every model: Claude, Gemini, OpenAI, Grok, local", "Unlimited sessions and collaborators", "Code view, forks, insights, audit export"]],
           ["Enterprise", "Annual contract", ["SSO, roles, audit log export", "Self-hosted runners and sandboxes", "Retention and data controls"]],
         ].map(([name, unit, items]) => (
           <div key={name as string} className={clsx("rounded-2xl border bg-panel p-6", name === "Team" ? "border-ink" : "border-line")}>

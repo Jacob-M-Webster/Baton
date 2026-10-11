@@ -14,6 +14,7 @@ from starlette.routing import Route
 from baton import context as ctx
 from baton.providers.anthropic_provider import AnthropicProvider
 from baton.providers.openai_provider import OpenAIProvider
+from baton.providers.xai_provider import XAIProvider
 from conftest import wait_for
 
 
@@ -141,6 +142,20 @@ async def test_openai_compatible_stream_assembles_tool_arguments():
     usage = [e.data for e in evs if e.kind == "usage"][0]
     assert usage["input_tokens"] == 40
     assert await p.list_models() == ["llama-test"]
+
+
+async def test_xai_lists_grok_chat_models_with_configured_ones_first():
+    ids = ["grok-2-image", "grok-3-mini", "grok-imagine-video", "grok-4", "grok-4.3", "text-embedding"]
+
+    async def models(_: Request):
+        return JSONResponse({"object": "list", "data": [{"id": i, "object": "model", "created": 1, "owned_by": "xai"} for i in ids]})
+
+    app = Starlette(routes=[Route("/v1/models", models, methods=["GET"])])
+    client = httpx2.AsyncClient(transport=httpx2.ASGITransport(app=app), base_url="http://fake")
+    p = XAIProvider("xai", "xai-key", "http://fake/v1", ["grok-4", "grok-gone"], http_client=client)
+    assert await p.list_models() == ["grok-4", "grok-4.3", "grok-3-mini"]
+    # Without a key the menu shows the configured list, and nothing is fetched.
+    assert await XAIProvider("xai", None, models=["grok-4"]).list_models() == ["grok-4"]
 
 
 def test_wire_formats_keep_tool_results_before_human_text():

@@ -17,6 +17,7 @@ KEYS: list[tuple[str, str | None, str]] = [
     ("ANTHROPIC_API_KEY", "anthropic", "Anthropic"),
     ("OPENAI_API_KEY", "openai", "OpenAI"),
     ("GEMINI_API_KEY", "gemini", "Google Gemini"),
+    ("XAI_API_KEY", "xai", "xAI Grok"),
     ("GITHUB_TOKEN", None, "GitHub"),
 ]
 MAX_KEY_CHARS = 500

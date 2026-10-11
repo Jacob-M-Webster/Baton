@@ -6,6 +6,7 @@ from .anthropic_provider import AnthropicProvider
 from .gemini_provider import GeminiProvider
 from .openai_provider import OpenAIProvider
 from .scripted import ScriptedProvider
+from .xai_provider import XAIProvider
 
 
 def build_provider(p: ProviderConfig, settings: Settings):
@@ -15,6 +16,8 @@ def build_provider(p: ProviderConfig, settings: Settings):
         return GeminiProvider(p.id, p.api_key, p.models, p.base_url)
     if p.kind == "openai":
         return OpenAIProvider(p.id, p.api_key, p.base_url, p.models, discover=p.discover_models)
+    if p.kind == "xai":
+        return XAIProvider(p.id, p.api_key, p.base_url, p.models)
     if p.kind == "scripted":
         return ScriptedProvider(p.id, speed=settings.demo_speed)
     raise ValueError(f"unknown provider kind: {p.kind}")

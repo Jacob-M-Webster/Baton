@@ -49,7 +49,7 @@ export function Home() {
       .catch(() => {});
   }, []);
 
-  // Default to the best configured model: Claude, then Gemini, then OpenAI, then local, then the offline demo.
+  // Default to the best configured model: Claude, then Gemini, then OpenAI, then Grok, then local, then the offline demo.
   // Without a subscription (when billing is on), start on the free offline demo instead.
   const billing = useBilling((s) => s.view);
   const billingLoaded = useBilling((s) => s.loaded);
@@ -60,7 +60,7 @@ export function Home() {
   const paywalled = locked(billing, choice?.provider);
   useEffect(() => {
     if (choice || !providers.length || !billingLoaded) return;
-    const order = billing?.required && !billing.active ? ["demo"] : ["anthropic", "gemini", "openai", "local", "demo"];
+    const order = billing?.required && !billing.active ? ["demo"] : ["anthropic", "gemini", "openai", "xai", "local", "demo"];
     for (const id of order) {
       const p = providers.find((x) => x.id === id && x.configured && x.models.length);
       if (p) {

@@ -101,7 +101,7 @@ export interface CatchUp {
 export interface ProviderInfo {
   id: string;
   label: string;
-  kind: "anthropic" | "openai" | "scripted";
+  kind: "anthropic" | "openai" | "gemini" | "xai" | "scripted";
   models: string[];
   configured: boolean;
   note: string;
@@ -129,7 +129,7 @@ export interface User {
 }
 
 export interface KeyInfo {
-  name: string; // ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, GITHUB_TOKEN
+  name: string; // ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, XAI_API_KEY, GITHUB_TOKEN
   label: string;
   provider: string | null;
   set: boolean;

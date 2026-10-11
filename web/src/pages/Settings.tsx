@@ -11,6 +11,7 @@ const HELP: Record<string, string> = {
   ANTHROPIC_API_KEY: "Claude models. console.anthropic.com → API keys.",
   OPENAI_API_KEY: "GPT models. platform.openai.com → API keys.",
   GEMINI_API_KEY: "Gemini models. aistudio.google.com → Get API key.",
+  XAI_API_KEY: "Grok models. console.x.ai → API keys.",
   GITHUB_TOKEN: "For private repositories. A fine-grained token with read access to contents.",
 };
 

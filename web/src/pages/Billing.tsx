@@ -7,7 +7,7 @@ import { Button } from "../components/Button";
 import { toast } from "../components/Toasts";
 
 const FEATURES = [
-  "Claude, Gemini, OpenAI and local models, switchable mid-session",
+  "Claude, Gemini, OpenAI, Grok and local models, switchable mid-session",
   "Unlimited sessions, collaborators and judges on their phones",
   "Code view, hand-offs, forks, insights and audit export",
 ];

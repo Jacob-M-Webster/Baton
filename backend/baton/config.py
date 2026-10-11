@@ -31,7 +31,7 @@ class ProviderConfig:
 
     id: str
     label: str
-    kind: str  # "anthropic" | "openai" | "gemini" | "scripted"
+    kind: str  # "anthropic" | "openai" | "gemini" | "xai" | "scripted"
     models: list[str]
     api_key: str | None = None
     base_url: str | None = None
@@ -106,6 +106,17 @@ def load_settings(**overrides) -> Settings:
             summary_model=os.environ.get("GEMINI_SUMMARY_MODEL", "gemini-2.5-flash-lite"),
             # Gemini takes far more, but compacting earlier keeps long sessions fast and cheap.
             context_window=int(os.environ.get("GEMINI_CONTEXT_WINDOW", "200000")),
+        ),
+        ProviderConfig(
+            id="xai",
+            label="xAI Grok",
+            kind="xai",
+            # With a key set, the menu lists every Grok chat model the key can use; these come first.
+            models=_csv("XAI_MODELS", "grok-4,grok-code-fast-1"),
+            api_key=os.environ.get("XAI_API_KEY"),
+            base_url=os.environ.get("XAI_BASE_URL"),
+            summary_model=os.environ.get("XAI_SUMMARY_MODEL") or None,
+            context_window=int(os.environ.get("XAI_CONTEXT_WINDOW", "256000")),
         ),
         ProviderConfig(
             id="local",

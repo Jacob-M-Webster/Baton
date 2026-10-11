@@ -96,7 +96,7 @@ def _warm_sdks(settings: Settings) -> None:
     import importlib
 
     kinds = {p.kind for p in settings.providers if p.api_key or p.discover_models}
-    for kind, module in (("anthropic", "anthropic"), ("openai", "openai"), ("gemini", "google.genai")):
+    for kind, module in (("anthropic", "anthropic"), ("openai", "openai"), ("xai", "openai"), ("gemini", "google.genai")):
         if kind in kinds:
             try:
                 importlib.import_module(module)
@@ -215,7 +215,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 configured = bool(names)
             return {
                 "id": p.id, "label": p.label, "kind": p.kind, "models": names, "configured": configured,
-                "note": p.note, "base_url": p.base_url if p.id not in ("anthropic", "openai") else None,
+                "note": p.note, "base_url": p.base_url if p.id not in ("anthropic", "openai", "xai") else None,
             }
 
         out = await asyncio.gather(*(one(p) for p in settings.providers))

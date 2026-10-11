@@ -89,7 +89,7 @@ No API keys are needed to try it: the **Offline demo** model is a scripted agent
 real tools in the empty repo and reacts to what people say. Add keys to use real models:
 
 ```bash
-cp .env.example .env    # then fill in ANTHROPIC_API_KEY, GEMINI_API_KEY and/or OPENAI_API_KEY
+cp .env.example .env    # then fill in ANTHROPIC_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY and/or XAI_API_KEY
 ```
 
 | Provider | How to enable | Notes |
@@ -97,6 +97,7 @@ cp .env.example .env    # then fill in ANTHROPIC_API_KEY, GEMINI_API_KEY and/or 
 | Anthropic (Claude) | `ANTHROPIC_API_KEY` | Messages API with streaming, tool use and prompt caching |
 | OpenAI | `OPENAI_API_KEY` | Chat Completions with streaming tool calls |
 | Google Gemini | `GEMINI_API_KEY` | Native Gemini API (google-genai): streaming, function calling, thought summaries. With a key set, the menu lists every chat model the key can use. Thought signatures are returned to the model that made them, so Gemini 3 tool loops work, and switching a session to Gemini mid-run works too |
+| xAI Grok | `XAI_API_KEY` | xAI's OpenAI-compatible API. With a key set, the menu lists every Grok chat model the key can use |
 | Local weights | Run Ollama, vLLM, LM Studio or llama.cpp; set `LOCAL_BASE_URL` (default `http://localhost:11434/v1`) | Models are discovered from the server's `/models` endpoint |
 | Anything else OpenAI- or Anthropic-compatible | Add it to `providers.json` (see `providers.example.json`) | OpenRouter, Groq, Together, Bedrock gateways, a team GPU box |
 

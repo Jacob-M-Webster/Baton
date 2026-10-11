@@ -180,7 +180,7 @@ async def test_anyone_in_it_may_delete_an_external_session(mgr):
 # ---- API keys --------------------------------------------------------------------
 def test_keys_can_be_changed_on_a_local_server(client, tmp_path):
     view = client.get("/api/settings").json()
-    assert [k["name"] for k in view["keys"]] == ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GITHUB_TOKEN"]
+    assert [k["name"] for k in view["keys"]] == ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY", "GITHUB_TOKEN"]
 
     key = "sk-test-0123456789abcd"
     r = client.put("/api/settings", json={"values": {"OPENAI_API_KEY": key, "GITHUB_TOKEN": "ghp_tok_123456789"}})

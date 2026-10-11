@@ -31,12 +31,13 @@ const SETUP: Record<string, string> = {
   anthropic: "Add an API key in Settings",
   openai: "Add an API key in Settings",
   gemini: "Add an API key in Settings",
+  xai: "Add an API key in Settings",
   local: "Start Ollama or any OpenAI-compatible server",
 };
 
 export function ProviderGlyph({ provider, className }: { provider: string; className?: string }) {
   const letter =
-    { anthropic: "A", openai: "O", gemini: "G", local: "L", demo: "D", external: "E" }[provider] ?? provider[0]?.toUpperCase();
+    { anthropic: "A", openai: "O", gemini: "G", xai: "X", local: "L", demo: "D", external: "E" }[provider] ?? provider[0]?.toUpperCase();
   return (
     <span
       className={clsx(
