@@ -138,8 +138,9 @@ async def push(base: Path, workspace: Path, gitdir: Path, repo: GitHubRepo, *, s
         code, out = await _run([git, "init", "-q", "--bare", str(gitdir)], _env(None), 30)
         if code != 0:
             raise GitHubError(f"git init failed: {_last_line(out)[:200]}")
+        # newline="" so Windows doesn't write \r\n: git would read the \r as part of the path.
         (gitdir / "objects" / "info" / "alternates").write_text(str((base / ".git" / "objects").resolve()) + "\n",
-                                                               encoding="utf-8")
+                                                               encoding="utf-8", newline="")
         if (base / ".git" / "shallow").exists():
             shutil.copyfile(base / ".git" / "shallow", gitdir / "shallow")
         await g("config", "core.bare", "false")
